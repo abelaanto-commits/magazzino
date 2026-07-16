@@ -1,0 +1,17 @@
+{
+  "name": "Time To Party Magazzino",
+  "short_name": "TTP Magazzino",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0d0e11",
+  "theme_color": "#7c3aed",
+  "description": "Gestione fatture, consumi e giacenze Time To Party",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

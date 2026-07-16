@@ -1,0 +1,163 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<p:FatturaElettronica versione="FPR12" xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2"
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:schemaLocation="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2 fatturaordinaria_v1.2.xsd ">
+  <FatturaElettronicaHeader>
+    <DatiTrasmissione>
+      <IdTrasmittente>
+        <IdPaese>IT</IdPaese>
+        <IdCodice>01433500897</IdCodice>
+      </IdTrasmittente>
+      <ProgressivoInvio>0KJDM</ProgressivoInvio>
+      <FormatoTrasmissione>FPR12</FormatoTrasmissione>
+      <CodiceDestinatario>0000000</CodiceDestinatario>
+      <ContattiTrasmittente>
+        <Telefono>0931763411</Telefono>
+        <Email>unigroup.clienti@legalmail.it</Email>
+      </ContattiTrasmittente>
+      <PECDestinatario>timetopartyeventisrls@pec.it</PECDestinatario>
+    </DatiTrasmissione>
+    <CedentePrestatore>
+      <DatiAnagrafici>
+        <IdFiscaleIVA>
+          <IdPaese>IT</IdPaese>
+          <IdCodice>01433500897</IdCodice>
+        </IdFiscaleIVA>
+        <CodiceFiscale>01433500897</CodiceFiscale>
+        <Anagrafica>
+          <Denominazione>UNIGROUP S.P.A.</Denominazione>
+        </Anagrafica>
+        <RegimeFiscale>RF01</RegimeFiscale>
+      </DatiAnagrafici>
+      <Sede>
+        <Indirizzo>C.DA SPALLA S.N.</Indirizzo>
+        <CAP>96010</CAP>
+        <Comune>MELILLI</Comune>
+        <Provincia>SR</Provincia>
+        <Nazione>IT</Nazione>
+      </Sede>
+      <IscrizioneREA>
+        <Ufficio>SR</Ufficio>
+        <NumeroREA>123450</NumeroREA>
+        <CapitaleSociale>0.00</CapitaleSociale>
+        <SocioUnico>SM</SocioUnico>
+        <StatoLiquidazione>LN</StatoLiquidazione>
+      </IscrizioneREA>
+      <Contatti>
+        <Telefono>0931763411</Telefono>
+        <Fax>0931763412</Fax>
+        <Email>unigroup.clienti@legalmail.it</Email>
+      </Contatti>
+    </CedentePrestatore>
+    <CessionarioCommittente>
+      <DatiAnagrafici>
+        <IdFiscaleIVA>
+          <IdPaese>IT</IdPaese>
+          <IdCodice>02003640899</IdCodice>
+        </IdFiscaleIVA>
+        <Anagrafica>
+          <Denominazione>TIME TO PARTY EVENTI S.R.L.S</Denominazione>
+        </Anagrafica>
+      </DatiAnagrafici>
+      <Sede>
+        <Indirizzo>VIA AUGUSTA N.17</Indirizzo>
+        <CAP>96100</CAP>
+        <Comune>SIRACUSA</Comune>
+        <Provincia>SR</Provincia>
+        <Nazione>IT</Nazione>
+      </Sede>
+    </CessionarioCommittente>
+  </FatturaElettronicaHeader>
+  <FatturaElettronicaBody>
+    <DatiGenerali>
+      <DatiGeneraliDocumento>
+        <TipoDocumento>TD01</TipoDocumento>
+        <Divisa>EUR</Divisa>
+        <Data>2026-06-19</Data>
+        <Numero>49524/FAC</Numero>
+        <ImportoTotaleDocumento>1436.26</ImportoTotaleDocumento>
+        <Causale>FATTURA ACCOMPAGNATORIA</Causale>
+      </DatiGeneraliDocumento>
+      <DatiTrasporto>
+        <MezzoTrasporto>CAMION</MezzoTrasporto>
+        <CausaleTrasporto>ORDINE CLIENTE C/TO VENDITA</CausaleTrasporto>
+        <NumeroColli>9</NumeroColli>
+        <Descrizione>CARTONI</Descrizione>
+        <UnitaMisuraPeso>KG</UnitaMisuraPeso>
+        <PesoNetto>37.40</PesoNetto>
+        <DataOraRitiro>2026-06-19T12:37:05+02:00</DataOraRitiro>
+        <DataInizioTrasporto>2026-06-19</DataInizioTrasporto>
+      </DatiTrasporto>
+    </DatiGenerali>
+    <DatiBeniServizi>
+      <DettaglioLinee>
+        <NumeroLinea>1</NumeroLinea>
+        <CodiceArticolo>
+          <CodiceTipo>INTERNO</CodiceTipo>
+          <CodiceValore>CIR729687</CodiceValore>
+        </CodiceArticolo>
+        <Descrizione>VODKA CIROC CL 70</Descrizione>
+        <Quantita>8.000</Quantita>
+        <UnitaMisura>PZ</UnitaMisura>
+        <PrezzoUnitario>26.90000</PrezzoUnitario>
+        <PrezzoTotale>215.20</PrezzoTotale>
+        <AliquotaIVA>22.00</AliquotaIVA>
+      </DettaglioLinee>
+      <DettaglioLinee>
+        <NumeroLinea>2</NumeroLinea>
+        <CodiceArticolo>
+          <CodiceTipo>INTERNO</CodiceTipo>
+          <CodiceValore>ON15070</CodiceValore>
+        </CodiceArticolo>
+        <Descrizione>GIN TANQUERAY TEN CL 70</Descrizione>
+        <Quantita>42.000</Quantita>
+        <UnitaMisura>PZ</UnitaMisura>
+        <PrezzoUnitario>22.90000</PrezzoUnitario>
+        <PrezzoTotale>961.80</PrezzoTotale>
+        <AliquotaIVA>22.00</AliquotaIVA>
+      </DettaglioLinee>
+      <DettaglioLinee>
+        <NumeroLinea>3</NumeroLinea>
+        <Descrizione>Consegnare pomeriggio ore 15.00/30 presso 7 Padel</Descrizione>
+        <PrezzoUnitario>0.00000</PrezzoUnitario>
+        <PrezzoTotale>0.00</PrezzoTotale>
+        <AliquotaIVA>0.00</AliquotaIVA>
+        <Natura>N2.2</Natura>
+      </DettaglioLinee>
+      <DettaglioLinee>
+        <NumeroLinea>4</NumeroLinea>
+        <TipoCessionePrestazione>AC</TipoCessionePrestazione>
+        <Descrizione>SPESE ACCESSORIE</Descrizione>
+        <PrezzoUnitario>0.26000</PrezzoUnitario>
+        <PrezzoTotale>0.26</PrezzoTotale>
+        <AliquotaIVA>22.00</AliquotaIVA>
+      </DettaglioLinee>
+      <DatiRiepilogo>
+        <AliquotaIVA>22.00</AliquotaIVA>
+        <ImponibileImporto>1177.26</ImponibileImporto>
+        <Imposta>259.00</Imposta>
+        <EsigibilitaIVA>I</EsigibilitaIVA>
+      </DatiRiepilogo>
+      <DatiRiepilogo>
+        <AliquotaIVA>0.00</AliquotaIVA>
+        <Natura>N2.2</Natura>
+        <ImponibileImporto>0.00</ImponibileImporto>
+        <Imposta>0.00</Imposta>
+        <EsigibilitaIVA>I</EsigibilitaIVA>
+      </DatiRiepilogo>
+    </DatiBeniServizi>
+    <DatiPagamento>
+      <CondizioniPagamento>TP02</CondizioniPagamento>
+      <DettaglioPagamento>
+        <ModalitaPagamento>MP05</ModalitaPagamento>
+        <DataScadenzaPagamento>2026-06-20</DataScadenzaPagamento>
+        <ImportoPagamento>1436.26</ImportoPagamento>
+        <IstitutoFinanziario>BANCA INTESA S.P.A.</IstitutoFinanziario>
+        <IBAN>IT05U0306917101100000002331</IBAN>
+        <ABI>03069</ABI>
+        <CAB>17101</CAB>
+      </DettaglioPagamento>
+    </DatiPagamento>
+  </FatturaElettronicaBody>
+</p:FatturaElettronica>

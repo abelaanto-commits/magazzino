@@ -1,0 +1,135 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<p:FatturaElettronica versione="FPR12" xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2"
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:schemaLocation="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2 fatturaordinaria_v1.2.xsd ">
+  <FatturaElettronicaHeader>
+    <DatiTrasmissione>
+      <IdTrasmittente>
+        <IdPaese>IT</IdPaese>
+        <IdCodice>01433500897</IdCodice>
+      </IdTrasmittente>
+      <ProgressivoInvio>0KJDN</ProgressivoInvio>
+      <FormatoTrasmissione>FPR12</FormatoTrasmissione>
+      <CodiceDestinatario>0000000</CodiceDestinatario>
+      <ContattiTrasmittente>
+        <Telefono>0931763411</Telefono>
+        <Email>unigroup.clienti@legalmail.it</Email>
+      </ContattiTrasmittente>
+      <PECDestinatario>timetopartyeventisrls@pec.it</PECDestinatario>
+    </DatiTrasmissione>
+    <CedentePrestatore>
+      <DatiAnagrafici>
+        <IdFiscaleIVA>
+          <IdPaese>IT</IdPaese>
+          <IdCodice>01433500897</IdCodice>
+        </IdFiscaleIVA>
+        <CodiceFiscale>01433500897</CodiceFiscale>
+        <Anagrafica>
+          <Denominazione>UNIGROUP S.P.A.</Denominazione>
+        </Anagrafica>
+        <RegimeFiscale>RF01</RegimeFiscale>
+      </DatiAnagrafici>
+      <Sede>
+        <Indirizzo>C.DA SPALLA S.N.</Indirizzo>
+        <CAP>96010</CAP>
+        <Comune>MELILLI</Comune>
+        <Provincia>SR</Provincia>
+        <Nazione>IT</Nazione>
+      </Sede>
+      <IscrizioneREA>
+        <Ufficio>SR</Ufficio>
+        <NumeroREA>123450</NumeroREA>
+        <CapitaleSociale>0.00</CapitaleSociale>
+        <SocioUnico>SM</SocioUnico>
+        <StatoLiquidazione>LN</StatoLiquidazione>
+      </IscrizioneREA>
+      <Contatti>
+        <Telefono>0931763411</Telefono>
+        <Fax>0931763412</Fax>
+        <Email>unigroup.clienti@legalmail.it</Email>
+      </Contatti>
+    </CedentePrestatore>
+    <CessionarioCommittente>
+      <DatiAnagrafici>
+        <IdFiscaleIVA>
+          <IdPaese>IT</IdPaese>
+          <IdCodice>02003640899</IdCodice>
+        </IdFiscaleIVA>
+        <Anagrafica>
+          <Denominazione>TIME TO PARTY EVENTI S.R.L.S</Denominazione>
+        </Anagrafica>
+      </DatiAnagrafici>
+      <Sede>
+        <Indirizzo>VIA AUGUSTA N.17</Indirizzo>
+        <CAP>96100</CAP>
+        <Comune>SIRACUSA</Comune>
+        <Provincia>SR</Provincia>
+        <Nazione>IT</Nazione>
+      </Sede>
+    </CessionarioCommittente>
+  </FatturaElettronicaHeader>
+  <FatturaElettronicaBody>
+    <DatiGenerali>
+      <DatiGeneraliDocumento>
+        <TipoDocumento>TD01</TipoDocumento>
+        <Divisa>EUR</Divisa>
+        <Data>2026-06-19</Data>
+        <Numero>49605/FAC</Numero>
+        <ImportoTotaleDocumento>117.44</ImportoTotaleDocumento>
+        <Causale>FATTURA ACCOMPAGNATORIA</Causale>
+      </DatiGeneraliDocumento>
+      <DatiTrasporto>
+        <MezzoTrasporto>CAMION</MezzoTrasporto>
+        <CausaleTrasporto>ORDINE CLIENTE C/TO VENDITA</CausaleTrasporto>
+        <NumeroColli>10</NumeroColli>
+        <Descrizione>CARTONI</Descrizione>
+        <UnitaMisuraPeso>KG</UnitaMisuraPeso>
+        <PesoNetto>60.00</PesoNetto>
+        <DataOraRitiro>2026-06-19T15:24:54+02:00</DataOraRitiro>
+        <DataInizioTrasporto>2026-06-19</DataInizioTrasporto>
+      </DatiTrasporto>
+    </DatiGenerali>
+    <DatiBeniServizi>
+      <DettaglioLinee>
+        <NumeroLinea>1</NumeroLinea>
+        <CodiceArticolo>
+          <CodiceTipo>INTERNO</CodiceTipo>
+          <CodiceValore>SB8235</CodiceValore>
+        </CodiceArticolo>
+        <Descrizione>TONICA LIMONE SCHWEPPES LT 1X6</Descrizione>
+        <Quantita>60.000</Quantita>
+        <UnitaMisura>PZ</UnitaMisura>
+        <PrezzoUnitario>1.60000</PrezzoUnitario>
+        <PrezzoTotale>96.00</PrezzoTotale>
+        <AliquotaIVA>22.00</AliquotaIVA>
+      </DettaglioLinee>
+      <DettaglioLinee>
+        <NumeroLinea>2</NumeroLinea>
+        <TipoCessionePrestazione>AC</TipoCessionePrestazione>
+        <Descrizione>SPESE ACCESSORIE</Descrizione>
+        <PrezzoUnitario>0.26000</PrezzoUnitario>
+        <PrezzoTotale>0.26</PrezzoTotale>
+        <AliquotaIVA>22.00</AliquotaIVA>
+      </DettaglioLinee>
+      <DatiRiepilogo>
+        <AliquotaIVA>22.00</AliquotaIVA>
+        <ImponibileImporto>96.26</ImponibileImporto>
+        <Imposta>21.18</Imposta>
+        <EsigibilitaIVA>I</EsigibilitaIVA>
+      </DatiRiepilogo>
+    </DatiBeniServizi>
+    <DatiPagamento>
+      <CondizioniPagamento>TP02</CondizioniPagamento>
+      <DettaglioPagamento>
+        <ModalitaPagamento>MP05</ModalitaPagamento>
+        <DataScadenzaPagamento>2026-06-20</DataScadenzaPagamento>
+        <ImportoPagamento>117.44</ImportoPagamento>
+        <IstitutoFinanziario>BANCA INTESA S.P.A.</IstitutoFinanziario>
+        <IBAN>IT05U0306917101100000002331</IBAN>
+        <ABI>03069</ABI>
+        <CAB>17101</CAB>
+      </DettaglioPagamento>
+    </DatiPagamento>
+  </FatturaElettronicaBody>
+</p:FatturaElettronica>
