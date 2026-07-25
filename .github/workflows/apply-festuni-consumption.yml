@@ -1,0 +1,97 @@
+name: Apply Festuni consumption
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-festuni-consumption.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add one-time consumption migration
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          marker = 'festuni_baile_funk_consumption_20260724_v1'
+          if marker in text:
+              print('Migration already present')
+              raise SystemExit(0)
+
+          function = r'''
+          function applyFestuniBaileFunkConsumption(state){
+           const marker='festuni_baile_funk_consumption_20260724_v1';if(state.meta[marker])return false;
+           let event=(state.events||[]).find(e=>String(e.event_date)==='2026-07-24'&&/festuni/i.test(String(e.name||''))&&/baile/i.test(String(e.name||'')));
+           if(!event){event={id:nextNumericId(state.events),event_date:'2026-07-24',name:'Festuni Baile Funk',location:'K24',notes:'Consumi caricati da riepilogo manuale',created_at:new Date().toISOString()};state.events.push(event)}
+           const bar=findAreaByName(state,'Bar 1')||findAreaByName(state,'Generale')||(state.areas||[])[0];
+           const tables=findAreaByName(state,'Tavoli')||findAreaByName(state,'Generale')||(state.areas||[])[0];
+           const groups=[
+            {area:bar,label:'BAR',entries:[['Gin Tanqueray 1 L',3],['Vodka Smirnoff Red 1 L',1],['Vodka pesca 1 L',1],['Gin Tanqueray 0.0 70 cl',1],['Prosecco Serena',6],['Coca-Cola',2],['Bicchieri 355 cc – stecca da 30',6],['Bicchieri 250 cc – stecca da 50',1]]},
+            {area:tables,label:'TAVOLI',entries:[['Gin Tanqueray 1 L',8],['Vodka Smirnoff Red 1 L',4],['Lemon',11],['Tonica',14],['Bicchieri 250 cc – stecca da 50',5]]}
+           ];
+           for(const group of groups){for(const [name,qty] of group.entries){
+            const p=findProductByName(state,name);if(!p)continue;
+            const code=`FESTUNI-BF-20260724-${group.label}-${p.id}`;
+            if(state.consumption_lines.some(x=>String(x.notes||'').includes(code)))continue;
+            const cid=nextNumericId(state.consumption_lines),cost=avgCost(p.id),note=`Consumo Festuni Baile Funk · ${group.label==='BAR'?'Bar 1':'Tavoli'}`;
+            state.consumption_lines.push({id:cid,event_id:event.id,area_id:group.area?.id||null,product_id:p.id,quantity_base:qty,unit:p.base_unit,cost_unit:cost,cost_total:qty*cost,notes:`${note} · ${code}`,source_type:'manual_import',source_id:null,created_at:new Date().toISOString()});
+            addMovementOnce(state,{code:`[${code}]`,date:event.event_date,type:'consumo',productId:p.id,delta:-qty,sourceType:'consumption_line',sourceId:cid,areaId:group.area?.id||null,note});
+           }}
+           const countedOffsets=[['Gin Tanqueray 1 L',11],['Vodka Smirnoff Red 1 L',5],['Vodka pesca 1 L',1],['Gin Tanqueray 0.0 70 cl',1],['Prosecco Serena',6]];
+           for(const [name,qty] of countedOffsets){const p=findProductByName(state,name);if(!p)continue;addMovementOnce(state,{code:`[FESTUNI-BF-OFFSET-20260724:${p.id}]`,date:'2026-06-05',type:'giacenza iniziale',productId:p.id,delta:qty,sourceType:'opening_balance',note:'Adeguamento giacenza iniziale: consumo Festuni Baile Funk già compreso nell’inventario fisico comunicato il 24/07/2026.'})}
+           state.audit_logs.push({id:nextNumericId(state.audit_logs),action:'caricamento consumo Festuni Baile Funk',entity_type:'event',entity_id:event.id,details:'13 righe e 63 unità: Bar 1 e Tavoli. La voce 255 è stata registrata come bicchieri 250 cc. Compensate in giacenza iniziale le 24 unità alcoliche già comprese nell’inventario fisico.',created_at:new Date().toISOString()});
+           state.meta[marker]={applied_at:new Date().toISOString(),event_id:event.id,event_date:event.event_date,total_units:63,bar_area_id:bar?.id||null,tables_area_id:tables?.id||null,interpreted_255_as_250:true,opening_offset_units:24};
+           return true;
+          }
+          '''
+
+          target = 'async function applyPendingMigrations(){'
+          if target not in text:
+              raise SystemExit('applyPendingMigrations not found')
+          text = text.replace(target, function + '\n' + target, 1)
+
+          old = 'const a=applyInventoryReconciliation(state),b=applyPrideConsumption(state);if(a||b)'
+          new = 'const a=applyInventoryReconciliation(state),b=applyPrideConsumption(state),c=applyFestuniBaileFunkConsumption(state);if(a||b||c)'
+          if old not in text:
+              raise SystemExit('Migration call site not found')
+          text = text.replace(old, new, 1)
+          text = text.replace('2.1.2', '2.1.3')
+          text = text.replace("app.toast?.('Consumo Pride e inventario sincronizzati')", "app.toast?.('Consumo Festuni Baile Funk sincronizzato')")
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import re
+          text = Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?: [^>]*)?>(.*?)</script>', text, re.S)
+          Path('/tmp/index.js').write_text(scripts[-1], encoding='utf-8')
+          PY
+          node --check /tmp/index.js
+
+      - name: Commit application update
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'Nothing to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Load Festuni Baile Funk consumption for 24 July 2026'
+          git push
