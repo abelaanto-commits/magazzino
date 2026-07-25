@@ -1,0 +1,85 @@
+name: Remove Festuni offsets
+
+on:
+  push:
+    paths:
+      - '.github/workflows/remove-festuni-offsets.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add offset correction migration
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          marker = 'festuni_baile_funk_full_deduction_20260724_v1'
+          if marker in text:
+              print('Correction already present')
+              raise SystemExit(0)
+
+          function = r'''
+          function applyFestuniFullDeductionCorrection(state){
+           const marker='festuni_baile_funk_full_deduction_20260724_v1';if(state.meta[marker])return false;
+           const before=state.movements.length;
+           state.movements=state.movements.filter(m=>!String(m.notes||'').includes('[FESTUNI-BF-OFFSET-20260724:'));
+           const removed=before-state.movements.length;
+           const festuniMeta=state.meta['festuni_baile_funk_consumption_20260724_v1'];
+           if(festuniMeta){festuniMeta.opening_offset_units=0;festuniMeta.all_consumption_deducted=true;festuniMeta.corrected_at=new Date().toISOString()}
+           const event=(state.events||[]).find(e=>String(e.event_date)==='2026-07-24'&&/festuni/i.test(String(e.name||''))&&/baile/i.test(String(e.name||'')));
+           state.audit_logs.push({id:nextNumericId(state.audit_logs),action:'correzione consumo Festuni Baile Funk',entity_type:'event',entity_id:event?.id||null,details:`Rimosse ${removed} compensazioni di giacenza iniziale. Tutte le 63 unità della serata del 24/07/2026 sono ora scalate integralmente dal magazzino.`,created_at:new Date().toISOString()});
+           state.meta[marker]={applied_at:new Date().toISOString(),removed_offset_movements:removed,all_consumption_deducted:true,total_units:63};
+           return true;
+          }
+          '''
+
+          target = 'async function applyPendingMigrations(){'
+          if target not in text:
+              raise SystemExit('applyPendingMigrations not found')
+          text = text.replace(target, function + '\n' + target, 1)
+
+          old = 'const a=applyInventoryReconciliation(state),b=applyPrideConsumption(state),c=applyFestuniBaileFunkConsumption(state);if(a||b||c)'
+          new = 'const a=applyInventoryReconciliation(state),b=applyPrideConsumption(state),c=applyFestuniBaileFunkConsumption(state),d=applyFestuniFullDeductionCorrection(state);if(a||b||c||d)'
+          if old not in text:
+              raise SystemExit('Migration call site not found')
+          text = text.replace(old, new, 1)
+          text = text.replace('2.1.3', '2.1.4')
+          text = text.replace("app.toast?.('Consumo Festuni Baile Funk sincronizzato')", "app.toast?.('Consumo Festuni scalato integralmente')")
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import re
+          text = Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?: [^>]*)?>(.*?)</script>', text, re.S)
+          Path('/tmp/index.js').write_text(scripts[-1], encoding='utf-8')
+          PY
+          node --check /tmp/index.js
+
+      - name: Commit correction
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'Nothing to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Fully deduct Festuni Baile Funk consumption from warehouse'
+          git push
