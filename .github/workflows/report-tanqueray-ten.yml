@@ -21,13 +21,39 @@ jobs:
         run: |
           python <<'PY'
           from pathlib import Path
-          import json, re
+          import json
 
           text = Path('404.html').read_text(encoding='utf-8')
-          m = re.search(r'const SEED_STATE\s*=\s*(\{.*?\});\s*const NAV', text, re.S)
-          if not m:
-              raise SystemExit('SEED_STATE not found')
-          state = json.loads(m.group(1))
+          needle = 'const SEED_STATE = '
+          start = text.index(needle) + len(needle)
+          i = start
+          depth = 0
+          in_string = False
+          escape = False
+          end = None
+          while i < len(text):
+              ch = text[i]
+              if in_string:
+                  if escape:
+                      escape = False
+                  elif ch == '\\':
+                      escape = True
+                  elif ch == '"':
+                      in_string = False
+              else:
+                  if ch == '"':
+                      in_string = True
+                  elif ch == '{':
+                      depth += 1
+                  elif ch == '}':
+                      depth -= 1
+                      if depth == 0:
+                          end = i + 1
+                          break
+              i += 1
+          if end is None:
+              raise SystemExit('SEED_STATE closing brace not found')
+          state = json.loads(text[start:end])
           product = next(p for p in state['products'] if p['name'] == 'Gin Tanqueray Ten 70 cl')
           pid = product['id']
           invoices = {i['id']: i for i in state.get('invoices', [])}
@@ -49,10 +75,6 @@ jobs:
           consumption_rows=[x for x in state.get('consumption_lines',[]) if int(x.get('product_id',-1))==pid]
           movements=[x for x in state.get('movements',[]) if int(x.get('product_id',-1))==pid]
           index=Path('index.html').read_text(encoding='utf-8')
-          migration_mentions=[]
-          for line in index.splitlines():
-              if 'Gin Tanqueray Ten 70 cl' in line:
-                  migration_mentions.append(line.strip())
           report={
             'product':product,
             'ordered_stock_affecting_units':sum(r['quantity_base'] for r in order_rows if r['affects_stock']==1),
@@ -62,8 +84,7 @@ jobs:
             'seed_consumption_rows':consumption_rows,
             'seed_movements':movements,
             'order_rows':order_rows,
-            'migration_mentions':migration_mentions,
-            'known_inventory_adjustment_units':-1 if 'Gin Tanqueray Ten 70 cl\',-1' in index else 0,
+            'known_inventory_adjustment_units':-1 if "['Gin Tanqueray Ten 70 cl',-1]" in index else 0,
             'note':'The inventory adjustment is not counted as consumption.'
           }
           Path('reports').mkdir(exist_ok=True)
