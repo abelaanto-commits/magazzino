@@ -1,0 +1,80 @@
+name: Report Tanqueray Ten
+
+on:
+  push:
+    paths:
+      - '.github/workflows/report-tanqueray-ten.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build report from seed state and migrations
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import json, re
+
+          text = Path('404.html').read_text(encoding='utf-8')
+          m = re.search(r'const SEED_STATE\s*=\s*(\{.*?\});\s*const NAV', text, re.S)
+          if not m:
+              raise SystemExit('SEED_STATE not found')
+          state = json.loads(m.group(1))
+          product = next(p for p in state['products'] if p['name'] == 'Gin Tanqueray Ten 70 cl')
+          pid = product['id']
+          invoices = {i['id']: i for i in state.get('invoices', [])}
+          suppliers = {s['id']: s for s in state.get('suppliers', [])}
+          lines = [l for l in state.get('invoice_lines', []) if int(l.get('product_id', -1)) == pid]
+          order_rows=[]
+          for l in lines:
+              inv=invoices.get(l.get('invoice_id'),{})
+              order_rows.append({
+                  'invoice_id':l.get('invoice_id'),
+                  'invoice_number':inv.get('invoice_number'),
+                  'invoice_date':inv.get('invoice_date'),
+                  'supplier':suppliers.get(inv.get('supplier_id'),{}).get('name'),
+                  'quantity_base':float(l.get('quantity_base') or 0),
+                  'is_free':int(l.get('is_free') or 0),
+                  'affects_stock':int(l.get('affects_stock') or 0),
+                  'gross_total':float(l.get('gross_total') or 0)
+              })
+          consumption_rows=[x for x in state.get('consumption_lines',[]) if int(x.get('product_id',-1))==pid]
+          movements=[x for x in state.get('movements',[]) if int(x.get('product_id',-1))==pid]
+          index=Path('index.html').read_text(encoding='utf-8')
+          migration_mentions=[]
+          for line in index.splitlines():
+              if 'Gin Tanqueray Ten 70 cl' in line:
+                  migration_mentions.append(line.strip())
+          report={
+            'product':product,
+            'ordered_stock_affecting_units':sum(r['quantity_base'] for r in order_rows if r['affects_stock']==1),
+            'ordered_paid_units':sum(r['quantity_base'] for r in order_rows if r['affects_stock']==1 and r['is_free']==0),
+            'ordered_free_units':sum(r['quantity_base'] for r in order_rows if r['affects_stock']==1 and r['is_free']==1),
+            'seed_consumed_units':sum(float(x.get('quantity_base') or 0) for x in consumption_rows),
+            'seed_consumption_rows':consumption_rows,
+            'seed_movements':movements,
+            'order_rows':order_rows,
+            'migration_mentions':migration_mentions,
+            'known_inventory_adjustment_units':-1 if 'Gin Tanqueray Ten 70 cl\',-1' in index else 0,
+            'note':'The inventory adjustment is not counted as consumption.'
+          }
+          Path('reports').mkdir(exist_ok=True)
+          Path('reports/tanqueray-ten.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+          PY
+
+      - name: Commit report
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add reports/tanqueray-ten.json
+          git commit -m 'Generate Tanqueray Ten order and consumption report'
+          git push
