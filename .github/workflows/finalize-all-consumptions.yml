@@ -1,0 +1,99 @@
+name: Finalize all consumptions
+
+on:
+  push:
+    paths:
+      - '.github/workflows/finalize-all-consumptions.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Normalize all supplied consumptions
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          marker = 'all_supplied_consumptions_finalized_v1'
+          if marker in text:
+              print('Final reconciliation already present')
+              raise SystemExit(0)
+
+          # Never create Pride opening-balance offsets again on fresh databases.
+          pride_offset = "addMovementOnce(state,{code:`[PRIDE-OFFSET-20260718:${p.id}]`,date:'2026-06-05',type:'giacenza iniziale',productId:p.id,delta:qty,sourceType:'opening_balance',note:'Adeguamento giacenza iniziale per consumo storico Pride già incluso nell’inventario fisico attuale.'})"
+          text = text.replace(pride_offset, '')
+
+          # Never create Festuni opening-balance offsets again on fresh databases.
+          old_block = "const countedOffsets=[['Gin Tanqueray 1 L',11],['Vodka Smirnoff Red 1 L',5],['Vodka pesca 1 L',1],['Gin Tanqueray 0.0 70 cl',1],['Prosecco Serena',6]];\n for(const [name,qty] of countedOffsets){const p=findProductByName(state,name);if(!p)continue;addMovementOnce(state,{code:`[FESTUNI-BF-OFFSET-20260724:${p.id}]`,date:'2026-06-05',type:'giacenza iniziale',productId:p.id,delta:qty,sourceType:'opening_balance',note:'Adeguamento giacenza iniziale: consumo Festuni Baile Funk già compreso nell’inventario fisico comunicato il 24/07/2026.'})}"
+          text = text.replace(old_block, '')
+
+          function = r'''
+          function applyAllConsumptionsFinalReconciliation(state){
+           const marker='all_supplied_consumptions_finalized_v1';if(state.meta[marker])return false;
+           const before=state.movements.length;
+           state.movements=state.movements.filter(m=>{
+            const notes=String(m.notes||'');
+            return !notes.includes('[PRIDE-OFFSET-20260718:')&&!notes.includes('[FESTUNI-BF-OFFSET-20260724:');
+           });
+           const removed=before-state.movements.length;
+           const prideMeta=state.meta['pride_consumption_20260718_v1'];
+           if(prideMeta){prideMeta.opening_offset=false;prideMeta.opening_offset_units=0;prideMeta.all_consumption_deducted=true;prideMeta.corrected_at=new Date().toISOString()}
+           const festuniMeta=state.meta['festuni_baile_funk_consumption_20260724_v1'];
+           if(festuniMeta){festuniMeta.opening_offset_units=0;festuniMeta.all_consumption_deducted=true;festuniMeta.corrected_at=new Date().toISOString()}
+           const prideLines=(state.consumption_lines||[]).filter(x=>String(x.notes||'').includes('PRIDE-20260718-')).length;
+           const festuniLines=(state.consumption_lines||[]).filter(x=>String(x.notes||'').includes('FESTUNI-BF-20260724-')).length;
+           state.audit_logs.push({id:nextNumericId(state.audit_logs),action:'riconciliazione definitiva consumi',entity_type:'warehouse',entity_id:null,details:`Pride: ${prideLines} righe e 58 unità. Festuni Baile Funk: ${festuniLines} righe e 63 unità. Rimosse ${removed} compensazioni: tutti i consumi ricevuti sono registrati come consumo reale e scalati dal magazzino.`,created_at:new Date().toISOString()});
+           state.meta[marker]={applied_at:new Date().toISOString(),pride_lines:prideLines,pride_units:58,festuni_lines:festuniLines,festuni_units:63,total_units:121,removed_offset_movements:removed,warehouse_fully_updated:true};
+           return true;
+          }
+          '''
+
+          target = 'async function applyPendingMigrations(){'
+          if target not in text:
+              raise SystemExit('applyPendingMigrations not found')
+          text = text.replace(target, function + '\n' + target, 1)
+
+          old = 'const a=applyInventoryReconciliation(state),b=applyPrideConsumption(state),c=applyFestuniBaileFunkConsumption(state),d=applyFestuniFullDeductionCorrection(state);if(a||b||c||d)'
+          new = 'const a=applyInventoryReconciliation(state),b=applyPrideConsumption(state),c=applyFestuniBaileFunkConsumption(state),d=applyFestuniFullDeductionCorrection(state),e=applyAllConsumptionsFinalReconciliation(state);if(a||b||c||d||e)'
+          if old not in text:
+              raise SystemExit('Migration call site not found')
+          text = text.replace(old, new, 1)
+          text = text.replace('2.1.4', '2.1.5')
+          text = text.replace("app.toast?.('Consumo Festuni scalato integralmente')", "app.toast?.('Tutti i consumi sono stati aggiornati')")
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import re
+          text = Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?: [^>]*)?>(.*?)</script>', text, re.S)
+          Path('/tmp/index.js').write_text(scripts[-1], encoding='utf-8')
+          PY
+          node --check /tmp/index.js
+
+      - name: Commit final reconciliation
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'Nothing to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Finalize all supplied consumptions and warehouse deductions'
+          git push
