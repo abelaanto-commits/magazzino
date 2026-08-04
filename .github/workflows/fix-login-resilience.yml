@@ -1,0 +1,69 @@
+name: Fix login resilience
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-login-resilience.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prevent optional modules and migrations from blocking access
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          marker = 'ACCESS_RESILIENCE_216'
+          if marker in text:
+              print('Repair already applied')
+              raise SystemExit(0)
+
+          old = "async function startApp(activeSession){session=activeSession;showLoading(true);setMessage('');try{app=await waitForApp();await loadWarehouseExtension(app);originalLocalSave=app.saveState.bind(app);originalOpenDocument=app.openStoredDocument.bind(app);let row=await fetchState();if(!row)row=await insertState(getAppState());setAppState(row.data);cloudVersion=row.version;cloudUpdatedAt=row.updated_at;await cacheCurrent();patchCloudUI();const migrated=await applyPendingMigrations();app.renderAll();if(migrated)app.toast?.('Consumo Nuccia Sole caricato e scalato');frame.style.visibility='visible';authBack.classList.add('hidden');if(pollTimer)clearInterval(pollTimer);pollTimer=setInterval(()=>pullState(false),POLL_MS);window.addEventListener('focus',()=>pullState(false));document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')pullState(false)})}catch(error){showLoading(false);const text=cloudError(error);if(text==='SETUP_REQUIRED'){authForm.classList.add('hidden');setMessage('');loading.classList.add('hidden');const box=authBack.querySelector('.authcard');if(!box.querySelector('.setup'))box.insertAdjacentHTML('beforeend','<div class=\"setup\"><b>Database non ancora configurato.</b><p>Apri Supabase → SQL Editor, esegui il file <code>supabase_setup.sql</code> presente nel repository e poi ricarica questa pagina.</p></div>')}else setMessage(text)}}"
+
+          new = "async function startApp(activeSession){session=activeSession;showLoading(true);setMessage('');try{app=await waitForApp();let optionalWarning='';try{await loadWarehouseExtension(app)}catch(error){optionalWarning=cloudError(error);console.error('ACCESS_RESILIENCE_216 extension',error)}originalLocalSave=app.saveState.bind(app);originalOpenDocument=app.openStoredDocument.bind(app);let row=await fetchState();if(!row)row=await insertState(getAppState());setAppState(row.data);cloudVersion=row.version;cloudUpdatedAt=row.updated_at;await cacheCurrent();patchCloudUI();let migrated=false,migrationWarning='';try{migrated=await applyPendingMigrations()}catch(error){migrationWarning=cloudError(error);console.error('ACCESS_RESILIENCE_216 migration',error)}app.renderAll();frame.style.visibility='visible';authBack.classList.add('hidden');if(migrated)app.toast?.('Consumo Nuccia Sole caricato e scalato');else if(migrationWarning)app.toast?.('Gestionale aperto · aggiornamento consumi da riprovare');else if(optionalWarning)app.toast?.('Gestionale aperto · modulo aggiuntivo non disponibile');if(pollTimer)clearInterval(pollTimer);pollTimer=setInterval(()=>pullState(false),POLL_MS);window.addEventListener('focus',()=>pullState(false));document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')pullState(false)})}catch(error){showLoading(false);const text=cloudError(error);if(text==='SETUP_REQUIRED'){authForm.classList.add('hidden');setMessage('');loading.classList.add('hidden');const box=authBack.querySelector('.authcard');if(!box.querySelector('.setup'))box.insertAdjacentHTML('beforeend','<div class=\"setup\"><b>Database non ancora configurato.</b><p>Apri Supabase → SQL Editor, esegui il file <code>supabase_setup.sql</code> presente nel repository e poi ricarica questa pagina.</p></div>')}else setMessage(text)}}"
+
+          if old not in text:
+              raise SystemExit('startApp block not found')
+          text = text.replace(old, new, 1)
+          text = text.replace('404.html?cloud=2.1.6', '404.html?cloud=2.1.7', 1)
+          text = text.replace('warehouse_extensions.js?v=2.1.6', 'warehouse_extensions.js?v=2.1.7', 1)
+          text = text.replace('Versione cloud:</b> ${cloudVersion||\'—\'}', 'Versione cloud:</b> ${cloudVersion||\'—\'}', 1)
+          text = text.replace('<span>2.1.6</span>', '<span>2.1.7</span>', 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import re
+          text = Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?: [^>]*)?>(.*?)</script>', text, re.S)
+          Path('/tmp/index.js').write_text(scripts[-1], encoding='utf-8')
+          PY
+          node --check /tmp/index.js
+
+      - name: Commit repair
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'Nothing to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Prevent migrations from blocking warehouse login'
+          git push
