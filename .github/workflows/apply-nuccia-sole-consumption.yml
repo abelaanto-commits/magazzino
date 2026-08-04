@@ -1,0 +1,108 @@
+name: Apply Nuccia Sole consumption
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-nuccia-sole-consumption.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add one-time Nuccia Sole consumption
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          marker = 'nuccia_sole_consumption_20260731_v1'
+          if marker in text:
+              print('Migration already present')
+              raise SystemExit(0)
+
+          function = r'''
+          function applyNucciaSoleConsumption(state){
+           const marker='nuccia_sole_consumption_20260731_v1';if(state.meta[marker])return false;
+           let event=(state.events||[]).find(e=>String(e.event_date)==='2026-07-31'&&/nuccia/i.test(String(e.name||''))&&/sole/i.test(String(e.name||'')));
+           if(!event){event={id:nextNumericId(state.events),event_date:'2026-07-31',name:'Nuccia Sole',location:'',notes:'Consumi caricati da riepilogo manuale',created_at:new Date().toISOString()};state.events.push(event)}
+           const area=findAreaByName(state,'Bar 1')||findAreaByName(state,'Generale')||(state.areas||[])[0];
+           const normalize=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+           const resolve=(aliases)=>{for(const alias of aliases){const exact=(state.products||[]).find(p=>normalize(p.name)===normalize(alias));if(exact)return exact}for(const alias of aliases){const tokens=normalize(alias).split(' ').filter(t=>t.length>2);const fuzzy=(state.products||[]).find(p=>{const n=normalize(p.name);return tokens.every(t=>n.includes(t))});if(fuzzy)return fuzzy}return null};
+           const entries=[
+            {aliases:['Gin Tanqueray 1 L'],qty:6,label:'Gin Tanqueray 1 L'},
+            {aliases:['Prosecco Serena','Prosecco'],qty:7,label:'Prosecco'},
+            {aliases:['Aperol 1 L','Aperol'],qty:3,label:'Aperol'},
+            {aliases:['Vodka Smirnoff Red 1 L','Smirnoff Red'],qty:1,label:'Vodka Smirnoff'},
+            {aliases:['Vermouth rosso 1 L','Vermouth Cinzano 1 L','Vermouth Cinzano','Vermouth rosso'],qty:1,label:'Vermouth'},
+            {aliases:['Bitter Martini 1 L','Bitter Martini'],qty:1,label:'Bitter'},
+            {aliases:['Tonica'],qty:11,label:'Tonica'},
+            {aliases:['Coca-Cola','Coca Cola'],qty:2,label:'Coca-Cola'},
+            {aliases:['Polpa fragola Royal Drink 1 kg','Sciroppo fragola','Polpa fragola'],qty:1,label:'Sciroppo fragola'},
+            {aliases:['Cranberry Royal Drink 75 cl','Cranberry'],qty:1,label:'Cranberry'},
+            {aliases:['Bicchieri 355 cc – stecca da 30','Bicchieri 355 cc'],qty:9,label:'Bicchieri 355 cc'},
+            {aliases:['Bicchieri 250 cc – stecca da 50','Bicchieri 250 cc'],qty:1,label:'Bicchieri 250 cc'}
+           ];
+           const missing=[];
+           for(const item of entries){
+            const p=resolve(item.aliases);if(!p){missing.push(item.label);continue}
+            const code=`NUCCIA-SOLE-20260731-BAR1-${p.id}`;
+            if(state.consumption_lines.some(x=>String(x.notes||'').includes(code)))continue;
+            const cid=nextNumericId(state.consumption_lines),cost=avgCost(p.id),note='Consumo Nuccia Sole · Bar 1';
+            state.consumption_lines.push({id:cid,event_id:event.id,area_id:area?.id||null,product_id:p.id,quantity_base:item.qty,unit:p.base_unit,cost_unit:cost,cost_total:item.qty*cost,notes:`${note} · ${code}`,source_type:'manual_import',source_id:null,created_at:new Date().toISOString()});
+            addMovementOnce(state,{code:`[${code}]`,date:event.event_date,type:'consumo',productId:p.id,delta:-item.qty,sourceType:'consumption_line',sourceId:cid,areaId:area?.id||null,note});
+           }
+           const loaded=entries.filter(item=>resolve(item.aliases)).reduce((sum,item)=>sum+item.qty,0);
+           state.audit_logs.push({id:nextNumericId(state.audit_logs),action:'caricamento consumo Nuccia Sole',entity_type:'event',entity_id:event.id,details:`Bar 1: ${entries.length-missing.length} righe, ${loaded} unità scalate integralmente. La voce 255 è stata registrata come bicchieri 250 cc.${missing.length?' Prodotti non trovati: '+missing.join(', '):''}`,created_at:new Date().toISOString()});
+           state.meta[marker]={applied_at:new Date().toISOString(),event_id:event.id,event_date:event.event_date,total_units:loaded,expected_units:44,area_id:area?.id||null,all_consumption_deducted:true,interpreted_255_as_250:true,missing_products:missing};
+           return true;
+          }
+          '''
+
+          target = 'async function applyPendingMigrations(){'
+          if target not in text:
+              raise SystemExit('applyPendingMigrations not found')
+          text = text.replace(target, function + '\n' + target, 1)
+
+          old = 'const a=applyInventoryReconciliation(state),b=applyPrideConsumption(state),c=applyFestuniBaileFunkConsumption(state),d=applyFestuniFullDeductionCorrection(state),e=applyAllConsumptionsFinalReconciliation(state);if(a||b||c||d||e)'
+          new = 'const a=applyInventoryReconciliation(state),b=applyPrideConsumption(state),c=applyFestuniBaileFunkConsumption(state),d=applyFestuniFullDeductionCorrection(state),e=applyAllConsumptionsFinalReconciliation(state),f=applyNucciaSoleConsumption(state);if(a||b||c||d||e||f)'
+          if old not in text:
+              raise SystemExit('Migration call site not found')
+          text = text.replace(old, new, 1)
+          text = text.replace('2.1.5', '2.1.6')
+          text = text.replace("app.toast?.('Tutti i consumi sono stati aggiornati')", "app.toast?.('Consumo Nuccia Sole caricato e scalato')")
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import re
+          text = Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?: [^>]*)?>(.*?)</script>', text, re.S)
+          Path('/tmp/index.js').write_text(scripts[-1], encoding='utf-8')
+          PY
+          node --check /tmp/index.js
+
+      - name: Commit application update
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'Nothing to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Load Nuccia Sole consumption for 31 July 2026'
+          git push
