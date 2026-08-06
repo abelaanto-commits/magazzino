@@ -1,0 +1,106 @@
+name: Apply Festuni XXL consumption
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-festuni-xxl-consumption.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add one-time Festuni XXL consumption
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          marker = 'festuni_xxl_consumption_20260805_v1'
+          if marker in text:
+              print('Migration already present')
+              raise SystemExit(0)
+
+          function = r'''
+          function applyFestuniXXLConsumption(state){
+           const marker='festuni_xxl_consumption_20260805_v1';if(state.meta[marker])return false;
+           let event=(state.events||[]).find(e=>String(e.event_date)==='2026-08-05'&&/festuni/i.test(String(e.name||''))&&/xxl/i.test(String(e.name||'')));
+           if(!event){event={id:nextNumericId(state.events),event_date:'2026-08-05',name:'Festuni XXL',location:'Emerald Klubb',notes:'Consumi caricati da riepilogo manuale',created_at:new Date().toISOString()};state.events.push(event)}
+           const bar1=findAreaByName(state,'Bar 1')||findAreaByName(state,'Generale')||(state.areas||[])[0];
+           const bar2=findAreaByName(state,'Bar 2')||findAreaByName(state,'Generale')||(state.areas||[])[0];
+           const tables=findAreaByName(state,'Tavoli')||findAreaByName(state,'Generale')||(state.areas||[])[0];
+           const groups=[
+            {area:bar1,label:'BAR1',display:'Bar 1',entries:[
+             ['Gin Tanqueray 1 L',11],['Vodka Smirnoff Red 1 L',4],['Rum scuro',3],['Triple Sec 1 L',2],['Vodka fragola 1 L',4],['Vodka pesca 1 L',2],['Vermouth rosso 1 L',2],['Bitter Martini 1 L',2],['Lemon',38],['Tonica',15],['Coca-Cola',3],['Sciroppo fragola',2],['Sweet & Sour',5],['Prosecco Serena',4],['Bicchieri 355 cc – stecca da 30',18],['Bicchieri 250 cc – stecca da 50',1]
+            ]},
+            {area:bar2,label:'BAR2',display:'Bar 2',entries:[
+             ['Gin Tanqueray 1 L',4],['Vodka Smirnoff Red 1 L',3],['Rum bianco 1 L',1],['Triple Sec 1 L',1],['Vermouth rosso 1 L',1],['Vodka fragola 1 L',1],['Aperol 1 L',1],['Prosecco Serena',1],['Bicchieri 355 cc – stecca da 30',9],['Lemon',13],['Tonica',2],['Sciroppo fragola',1],['Succo cranberry',1],['Sweet & Sour',1],['Coca-Cola',3],['Succo ananas',1]
+            ]},
+            {area:tables,label:'TAVOLI',display:'Tavoli',entries:[
+             ['Gin Tanqueray Ten 70 cl',49],['Grey Goose 70 cl',2],['Moët Réserve Impériale',1],['Prosecco Serena',10],['Vodka Smirnoff Red 1 L',14],['Bicchieri 250 cc – stecca da 50',17],['Lemon',63],['Tonica',52]
+            ]}
+           ];
+           const missing=[];let loadedUnits=0,loadedLines=0;
+           for(const group of groups){for(const [name,qty] of group.entries){
+            const p=findProductByName(state,name);if(!p){missing.push(`${group.display}: ${name}`);continue}
+            const code=`FESTUNI-XXL-20260805-${group.label}-${p.id}`;
+            if(state.consumption_lines.some(x=>String(x.notes||'').includes(code)))continue;
+            const cid=nextNumericId(state.consumption_lines),cost=avgCost(p.id),note=`Consumo Festuni XXL · ${group.display}`;
+            const extra=(group.label==='TAVOLI'&&name==='Lemon')?' · quantità comunicata 32+31':'';
+            state.consumption_lines.push({id:cid,event_id:event.id,area_id:group.area?.id||null,product_id:p.id,quantity_base:qty,unit:p.base_unit,cost_unit:cost,cost_total:qty*cost,notes:`${note}${extra} · ${code}`,source_type:'manual_import',source_id:null,created_at:new Date().toISOString()});
+            addMovementOnce(state,{code:`[${code}]`,date:event.event_date,type:'consumo',productId:p.id,delta:-qty,sourceType:'consumption_line',sourceId:cid,areaId:group.area?.id||null,note:`${note}${extra}`});
+            loadedUnits+=qty;loadedLines++;
+           }}
+           state.audit_logs.push({id:nextNumericId(state.audit_logs),action:'caricamento consumo Festuni XXL',entity_type:'event',entity_id:event.id,details:`${loadedLines} righe e ${loadedUnits} unità scalate integralmente: Bar 1 116, Bar 2 44, Tavoli 208.${missing.length?' Prodotti non trovati: '+missing.join(', '):''}`,created_at:new Date().toISOString()});
+           state.meta[marker]={applied_at:new Date().toISOString(),event_id:event.id,event_date:event.event_date,total_units:loadedUnits,expected_units:368,bar1_units:116,bar2_units:44,tables_units:208,loaded_lines:loadedLines,expected_lines:40,all_consumption_deducted:true,mappings:{vodka:'Vodka Smirnoff Red 1 L',bar1_rum:'Rum scuro',bar2_fragola:'Sciroppo fragola',tables_lemon:'63 (32+31)'},missing_products:missing};
+           return true;
+          }
+          '''
+
+          target = 'async function applyPendingMigrations(){'
+          if target not in text:
+              raise SystemExit('applyPendingMigrations not found')
+          text = text.replace(target, function + '\n' + target, 1)
+
+          old = 'const a=applyInventoryReconciliation(state),b=applyPrideConsumption(state),c=applyFestuniBaileFunkConsumption(state),d=applyFestuniFullDeductionCorrection(state),e=applyAllConsumptionsFinalReconciliation(state),f=applyNucciaSoleConsumption(state);if(a||b||c||d||e||f)'
+          new = 'const a=applyInventoryReconciliation(state),b=applyPrideConsumption(state),c=applyFestuniBaileFunkConsumption(state),d=applyFestuniFullDeductionCorrection(state),e=applyAllConsumptionsFinalReconciliation(state),f=applyNucciaSoleConsumption(state),g=applyFestuniXXLConsumption(state);if(a||b||c||d||e||f||g)'
+          if old not in text:
+              raise SystemExit('Migration call site not found')
+          text = text.replace(old, new, 1)
+          text = text.replace('2.1.7', '2.1.8')
+          text = text.replace("app.toast?.('Consumo Nuccia Sole caricato e scalato')", "app.toast?.('Consumo Festuni XXL caricato e scalato')")
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import re
+          text = Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?: [^>]*)?>(.*?)</script>', text, re.S)
+          Path('/tmp/index.js').write_text(scripts[-1], encoding='utf-8')
+          PY
+          node --check /tmp/index.js
+
+      - name: Commit application update
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'Nothing to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Load Festuni XXL consumption for 5 August 2026'
+          git push
