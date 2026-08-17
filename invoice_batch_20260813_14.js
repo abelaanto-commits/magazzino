@@ -1,0 +1,107 @@
+(function(){
+'use strict';
+
+window.applyInvoiceBatchAug1314=function(state){
+ const marker='invoice_batch_20260813_14_v1';if(state.meta?.[marker])return false;
+ state.meta=state.meta||{};
+ state.suppliers=Array.isArray(state.suppliers)?state.suppliers:[];
+ state.products=Array.isArray(state.products)?state.products:[];
+ state.product_aliases=Array.isArray(state.product_aliases)?state.product_aliases:[];
+ state.invoices=Array.isArray(state.invoices)?state.invoices:[];
+ state.invoice_lines=Array.isArray(state.invoice_lines)?state.invoice_lines:[];
+ state.movements=Array.isArray(state.movements)?state.movements:[];
+ state.audit_logs=Array.isArray(state.audit_logs)?state.audit_logs:[];
+ const now=new Date().toISOString();
+ const next=list=>Array.isArray(list)&&list.length?Math.max(...list.map(x=>Number(x.id)||0))+1:1;
+ const clean=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
+ const ensureSupplier=(name,vat)=>{let s=state.suppliers.find(x=>clean(x.name)===clean(name)||(vat&&String(x.vat_number||'')===vat));if(!s){s={id:next(state.suppliers),name,vat_number:vat||'',created_at:now};state.suppliers.push(s)}return s};
+ const ensureAlias=(p,alias,sid)=>{if(!alias)return;if(!state.product_aliases.some(a=>Number(a.product_id)===Number(p.id)&&clean(a.alias)===clean(alias)&&Number(a.supplier_id||0)===Number(sid||0)))state.product_aliases.push({id:next(state.product_aliases),product_id:p.id,alias,supplier_id:sid||null})};
+ const ensureProduct=(spec,supplierId,alias)=>{let p=state.products.find(x=>clean(x.name)===clean(spec.name));if(!p){p={id:next(state.products),name:spec.name,brand:spec.brand||'',category:spec.category||'Altri prodotti',subcategory:spec.subcategory||'',format:spec.format||'',base_unit:spec.base_unit||'bottiglia',units_per_case:Number(spec.units_per_case||1),min_stock:Number(spec.min_stock||0),active:1,created_at:now};state.products.push(p)}ensureAlias(p,alias,supplierId);return p};
+ const invoiceExists=(sid,number,date)=>state.invoices.some(i=>Number(i.supplier_id)===Number(sid)&&clean(i.invoice_number)===clean(number)&&String(i.invoice_date)===String(date));
+ let added=0,skipped=0,stockUnits=0;
+ const addInvoice=doc=>{
+  const sup=ensureSupplier(doc.supplier,doc.vat);
+  if(invoiceExists(sup.id,doc.number,doc.date)){skipped++;return}
+  const iid=next(state.invoices);
+  state.invoices.push({id:iid,supplier_id:sup.id,invoice_number:doc.number,invoice_date:doc.date,total_gross:doc.totalGross,document_paths:JSON.stringify([]),source_type:doc.sourceType||'FOTO',status:doc.status||'confermato',notes:doc.notes||'',created_at:now});
+  for(const ln of doc.lines){
+   let p=null;if(ln.product)p=ensureProduct(ln.product,sup.id,ln.description);
+   const lid=next(state.invoice_lines),q=Number(ln.quantityBase||0),free=ln.isFree?1:0,affects=ln.affectsStock===false?0:1;
+   state.invoice_lines.push({id:lid,invoice_id:iid,product_id:p?.id||null,raw_description:ln.description,source_quantity:Number(ln.sourceQuantity||0),source_unit:ln.sourceUnit||'',quantity_base:q,net_unit_price:Number(ln.netUnitBase||0),gross_unit_price:Number(ln.grossUnitBase||0),net_total:Number(ln.netTotal||0),gross_total:Number(ln.grossTotal||0),vat_rate:Number(ln.vatRate??22),is_free:free,affects_stock:affects,notes:ln.notes||'',source_net_unit_price:Number(ln.sourceNetUnit||0)});
+   if(affects&&p&&q){state.movements.push({id:next(state.movements),movement_date:doc.date,movement_type:free?'omaggio':'acquisto',product_id:p.id,quantity_delta:q,unit_cost:free?0:Number(ln.grossUnitBase||0),source_type:'invoice_line',source_id:lid,area_id:null,user_id:null,notes:`Carico da fattura ${doc.number}`,created_at:now});stockUnits+=q}
+  }
+  added++;
+ };
+
+ const P={
+  cool475:{name:'Acqua Cool frizzante 47.5 cl',brand:'Cool',category:'Acqua',format:'47.5 cl',base_unit:'bottiglia',units_per_case:24,min_stock:0},
+  redbull:{name:'Red Bull 25 cl',brand:'Red Bull',category:'Energy drink',format:'25 cl',base_unit:'lattina',units_per_case:24,min_stock:0},
+  cups355:{name:'Bicchieri 355 cc – stecca da 30',brand:'Vari',category:'Materiale monouso',format:'355 cc × 30',base_unit:'stecca',units_per_case:30,min_stock:5},
+  cups250:{name:'Bicchieri 250 cc – stecca da 50',brand:'Vari',category:'Materiale monouso',format:'250 cc × 50',base_unit:'stecca',units_per_case:20,min_stock:5},
+  tanq:{name:'Gin Tanqueray 1 L',brand:'Tanqueray',category:'Gin',format:'1 L',base_unit:'bottiglia',units_per_case:6,min_stock:6},
+  tanq10:{name:'Gin Tanqueray Ten 70 cl',brand:'Tanqueray',category:'Gin',format:'70 cl',base_unit:'bottiglia',units_per_case:6,min_stock:6},
+  bitter:{name:'Bitter Martini 1 L',brand:'Martini',category:'Aperitivi',format:'1 L',base_unit:'bottiglia',units_per_case:6,min_stock:2},
+  tonica:{name:'Tonica',brand:'Vari',category:'Tonica',format:'Vari',base_unit:'bottiglia',units_per_case:6,min_stock:12},
+  lemon:{name:'Lemon',brand:'Vari',category:'Lemon',format:'Vari',base_unit:'bottiglia',units_per_case:6,min_stock:24},
+  coca15:{name:'Coca-Cola 1.5 L',brand:'Coca-Cola',category:'Coca-Cola',format:'1.5 L',base_unit:'bottiglia',units_per_case:6,min_stock:0},
+  ketel:{name:'Vodka Ketel One 1 L',brand:'Ketel One',category:'Vodka',format:'1 L',base_unit:'bottiglia',units_per_case:6,min_stock:0},
+  donjulio:{name:'Tequila Don Julio Reposado 70 cl',brand:'Don Julio',category:'Tequila',format:'70 cl',base_unit:'bottiglia',units_per_case:6,min_stock:0},
+  casamigos:{name:'Tequila Casamigos Blanco 70 cl',brand:'Casamigos',category:'Tequila',format:'70 cl',base_unit:'bottiglia',units_per_case:6,min_stock:0},
+  espolon:{name:'Tequila Espolon Blanco 70 cl',brand:'Espolon',category:'Tequila',format:'70 cl',base_unit:'bottiglia',units_per_case:6,min_stock:0},
+  lime:{name:'Polpa lime 100% Sour Lime ODK 750 ml',brand:'ODK',category:'Mixer',format:'750 ml',base_unit:'bottiglia',units_per_case:6,min_stock:0},
+  sbfrizz:{name:'Acqua S.Benedetto frizzante 50 cl',brand:'San Benedetto',category:'Acqua',format:'50 cl',base_unit:'bottiglia',units_per_case:24,min_stock:0},
+  orange:{name:'Succo arancia',brand:'Derby',category:'Succhi',format:'1,5 L',base_unit:'bottiglia',units_per_case:6,min_stock:1},
+  pineapple:{name:'Succo ananas',brand:'Derby',category:'Succhi',format:'1,5 L',base_unit:'bottiglia',units_per_case:6,min_stock:1},
+  sweet:{name:'Sweet & Sour',brand:'Mixer',category:'Sweet & Sour',format:'1 L',base_unit:'bottiglia',units_per_case:6,min_stock:2},
+  strawberry:{name:'Sciroppo fragola',brand:'Royal Drink',category:'Sciroppi',format:'1 kg',base_unit:'bottiglia',units_per_case:6,min_stock:1},
+  fanta:{name:'Fanta Lemon 90 cl',brand:'Fanta',category:'Lemon',format:'90 cl',base_unit:'bottiglia',units_per_case:6,min_stock:3},
+  tepelene:{name:'Acqua Tepelene naturale 50 cl',brand:'Tepelene',category:'Acqua',format:'50 cl',base_unit:'bottiglia',units_per_case:12,min_stock:48}
+ };
+
+ addInvoice({supplier:'UNIGROUP S.P.A.',vat:'01433500897',number:'70682/FAC',date:'2026-08-05',totalGross:169.17,sourceType:'XML',status:'confermato',notes:'Importata da XML FatturaPA IT01433500897_0L1YV(1).xml',lines:[
+  {product:P.cool475,description:'ACQUA FRIZZANTE COOL CL 47.5 X24',sourceQuantity:1,sourceUnit:'CT',quantityBase:24,sourceNetUnit:6.10,netUnitBase:6.10/24,grossUnitBase:7.442/24,netTotal:6.10,grossTotal:7.442,vatRate:22},
+  {product:P.redbull,description:'RED BULL LATTINA CL 25 X 24 PZ',sourceQuantity:72,sourceUnit:'PZ',quantityBase:72,sourceNetUnit:1.40,netUnitBase:1.40,grossUnitBase:1.708,netTotal:100.80,grossTotal:122.976,vatRate:22},
+  {product:P.cups355,description:'BICCHIERI 355 CC X 30 CF TUMBLER TRASP.',sourceQuantity:15,sourceUnit:'CF',quantityBase:15,sourceNetUnit:2.10,netUnitBase:2.10,grossUnitBase:2.562,netTotal:31.50,grossTotal:38.43,vatRate:22},
+  {description:'SPESE ACCESSORIE',sourceQuantity:0,sourceUnit:'',quantityBase:0,sourceNetUnit:0.26,netUnitBase:0,grossUnitBase:0,netTotal:0.26,grossTotal:0.3172,vatRate:22,affectsStock:false}
+ ]});
+
+ addInvoice({supplier:'UNIGROUP S.P.A.',vat:'01433500897',number:'76043',date:'2026-08-14',totalGross:2097.86,sourceType:'FOTO',status:'confermato',notes:'Fattura accompagnatoria fotografata del 14/08/2026. Prezzi di riga imponibili; IVA 22% applicata ai costi di magazzino.',lines:[
+  {product:P.tonica,description:'TONICA CL 75X6 TOMARCHIO',sourceQuantity:30,sourceUnit:'PZ',quantityBase:30,sourceNetUnit:1.00,netUnitBase:1.00,grossUnitBase:1.22,netTotal:30.00,grossTotal:36.60,vatRate:22},
+  {product:P.coca15,description:'COCA COLA LT 1.5X6',sourceQuantity:18,sourceUnit:'PZ',quantityBase:18,sourceNetUnit:1.95,netUnitBase:1.95,grossUnitBase:2.379,netTotal:35.10,grossTotal:42.822,vatRate:22},
+  {product:P.tanq,description:'GIN TANQUERAY LT 1',sourceQuantity:36,sourceUnit:'PZ',quantityBase:36,sourceNetUnit:17.30,netUnitBase:17.30,grossUnitBase:21.106,netTotal:622.80,grossTotal:759.816,vatRate:22},
+  {product:P.tanq10,description:'GIN TANQUERAY TEN CL 70',sourceQuantity:6,sourceUnit:'PZ',quantityBase:6,sourceNetUnit:22.90,netUnitBase:22.90,grossUnitBase:27.938,netTotal:137.40,grossTotal:167.628,vatRate:22},
+  {product:P.redbull,description:'RED BULL LATTINA CL 25 X 24 PZ',sourceQuantity:72,sourceUnit:'PZ',quantityBase:72,sourceNetUnit:1.40,netUnitBase:1.40,grossUnitBase:1.708,netTotal:100.80,grossTotal:122.976,vatRate:22},
+  {product:P.bitter,description:'APERITIVO BITTER MARTINI LT 1',sourceQuantity:6,sourceUnit:'PZ',quantityBase:6,sourceNetUnit:8.50,netUnitBase:8.50,grossUnitBase:10.37,netTotal:51.00,grossTotal:62.22,vatRate:22},
+  {product:P.ketel,description:'VODKA KETEL ONE LT 1',sourceQuantity:3,sourceUnit:'PZ',quantityBase:3,sourceNetUnit:27.50,netUnitBase:27.50,grossUnitBase:33.55,netTotal:82.50,grossTotal:100.65,vatRate:22},
+  {product:P.lemon,description:'LIMONATA "VERDELLO" CL 75X6 TOMARCHIO',sourceQuantity:30,sourceUnit:'PZ',quantityBase:30,sourceNetUnit:1.00,netUnitBase:1.00,grossUnitBase:1.22,netTotal:30.00,grossTotal:36.60,vatRate:22},
+  {product:P.donjulio,description:'TEQUILA DON JULIO REPOSADO CL 70',sourceQuantity:6,sourceUnit:'PZ',quantityBase:6,sourceNetUnit:59.00,netUnitBase:53.10,grossUnitBase:64.782,netTotal:318.60,grossTotal:388.692,vatRate:22,notes:'Sconto 10%'},
+  {product:P.casamigos,description:'TEQUILA CASAMIGOS BLANCO CL 70',sourceQuantity:2,sourceUnit:'PZ',quantityBase:2,sourceNetUnit:53.00,netUnitBase:53.00,grossUnitBase:64.66,netTotal:106.00,grossTotal:129.32,vatRate:22},
+  {product:P.espolon,description:'TEQUILA ESPOLON BLANCO CL 70',sourceQuantity:6,sourceUnit:'PZ',quantityBase:6,sourceNetUnit:21.50,netUnitBase:19.35,grossUnitBase:23.607,netTotal:116.10,grossTotal:141.642,vatRate:22,notes:'Sconto 10%'},
+  {product:P.lime,description:'POLPA LIME 100% SOUR LIME ML 750X6 ODK',sourceQuantity:3,sourceUnit:'PZ',quantityBase:3,sourceNetUnit:10.00,netUnitBase:10.00,grossUnitBase:12.20,netTotal:30.00,grossTotal:36.60,vatRate:22},
+  {product:P.cups250,description:'BICCHIERI 250 CC KRISTALL PZ 50 ISAPX20',sourceQuantity:20,sourceUnit:'CF',quantityBase:20,sourceNetUnit:2.95,netUnitBase:2.95,grossUnitBase:3.599,netTotal:59.00,grossTotal:71.98,vatRate:22},
+  {description:'SPESE ACCESSORIE',sourceQuantity:0,sourceUnit:'',quantityBase:0,sourceNetUnit:0.26,netUnitBase:0,grossUnitBase:0,netTotal:0.26,grossTotal:0.3172,vatRate:22,affectsStock:false,notes:'Quota accessoria ricavata dal totale documento'},
+  {description:'MENTONICA POMPELMO ROSA LT 1X6 SCHWEPPES',sourceQuantity:18,sourceUnit:'PZ',quantityBase:0,sourceNetUnit:0,netUnitBase:0,grossUnitBase:0,netTotal:0,grossTotal:0,vatRate:22,affectsStock:false,notes:'Prodotto non disponibile momentaneamente'}
+ ]});
+
+ addInvoice({supplier:'ALESCIO DISTRIBUZIONE SRL SIRACUSA',vat:'01499930889',number:'34785/Q',date:'2026-08-13',totalGross:1170.63,sourceType:'FOTO',status:'parziale',notes:'Caricata la sola pagina 1/2 ricevuta. € 1.170,63 è il subtotale IVA inclusa delle righe visibili, non il totale definitivo della fattura. Da completare con pagina 2.',lines:[
+  {product:P.sbfrizz,description:'ACQUA S.BENEDETTO FRIZZANTE CL50 (24) PET',sourceQuantity:96,sourceUnit:'PZ',quantityBase:96,sourceNetUnit:0.180,netUnitBase:0.180,grossUnitBase:0.2196,netTotal:17.28,grossTotal:21.0816,vatRate:22},
+  {product:P.orange,description:'DERBY ARANCIA BOTT.PET LT.1,5(6) CON TAPPO DOSATORE',sourceQuantity:12,sourceUnit:'PZ',quantityBase:12,sourceNetUnit:1.844,netUnitBase:1.844,grossUnitBase:2.24968,netTotal:22.13,grossTotal:26.9986,vatRate:22},
+  {product:P.pineapple,description:'DERBY ANANAS BOTT.PET LT.1,5(6) CON TAPPO DOSATORE',sourceQuantity:6,sourceUnit:'PZ',quantityBase:6,sourceNetUnit:1.885,netUnitBase:1.885,grossUnitBase:2.2997,netTotal:11.31,grossTotal:13.7982,vatRate:22},
+  {product:P.sweet,description:'MIXER SWEET & SOUR MIX LT.1 (6)',sourceQuantity:24,sourceUnit:'PZ',quantityBase:24,sourceNetUnit:5.574,netUnitBase:5.574,grossUnitBase:6.80028,netTotal:133.78,grossTotal:163.2116,vatRate:22},
+  {product:P.strawberry,description:'SCIROPPO FRAGOLA KG.1 ROYAL DRINK (6)',sourceQuantity:6,sourceUnit:'PZ',quantityBase:6,sourceNetUnit:3.926,netUnitBase:3.926,grossUnitBase:4.78972,netTotal:23.56,grossTotal:28.7432,vatRate:22},
+  {product:P.cups355,description:'BICCHIERI TUMBLER CC355 PZ.30 (30)',sourceQuantity:30,sourceUnit:'PZ',quantityBase:30,sourceNetUnit:1.150,netUnitBase:1.150,grossUnitBase:1.403,netTotal:34.50,grossTotal:42.09,vatRate:22},
+  {product:P.fanta,description:'FANTA LEMON CL.90 (6) PET',sourceQuantity:18,sourceUnit:'PZ',quantityBase:18,sourceNetUnit:0.850,netUnitBase:0.850,grossUnitBase:1.037,netTotal:15.30,grossTotal:18.666,vatRate:22},
+  {product:P.tepelene,description:'ACQUA TEPELENE NATUR.CL.50 (12)PET',sourceQuantity:1080,sourceUnit:'PZ',quantityBase:1080,sourceNetUnit:0.197,netUnitBase:0.197,grossUnitBase:0.24034,netTotal:212.76,grossTotal:259.5672,vatRate:22},
+  {product:P.tepelene,description:'ACQUA TEPELENE NATUR.CL.50 (12)PET - OMAGGIO',sourceQuantity:108,sourceUnit:'PZ',quantityBase:108,sourceNetUnit:0.197,netUnitBase:0.197,grossUnitBase:0,netTotal:0,grossTotal:0,vatRate:22,isFree:true,notes:'Omaggio'},
+  {product:P.tonica,description:'KINLEY TONICA WATER PET 90 (6)',sourceQuantity:360,sourceUnit:'PZ',quantityBase:360,sourceNetUnit:0.894,netUnitBase:0.894,grossUnitBase:1.09068,netTotal:321.84,grossTotal:392.6448,vatRate:22},
+  {product:P.tonica,description:'KINLEY TONICA WATER PET 90 (6) - OMAGGIO',sourceQuantity:36,sourceUnit:'PZ',quantityBase:36,sourceNetUnit:0.894,netUnitBase:0.894,grossUnitBase:0,netTotal:0,grossTotal:0,vatRate:22,isFree:true,notes:'Omaggio'},
+  {product:P.lemon,description:'KINLEY BITTER LEMON PET 90 (6)',sourceQuantity:180,sourceUnit:'PZ',quantityBase:180,sourceNetUnit:0.894,netUnitBase:0.894,grossUnitBase:1.09068,netTotal:160.92,grossTotal:196.3224,vatRate:22},
+  {product:P.lemon,description:'KINLEY BITTER LEMON PET 90 (6) - OMAGGIO',sourceQuantity:18,sourceUnit:'PZ',quantityBase:18,sourceNetUnit:0.894,netUnitBase:0.894,grossUnitBase:0,netTotal:0,grossTotal:0,vatRate:22,isFree:true,notes:'Omaggio'},
+  {description:'CONTRIBUTO TRASPORTO',sourceQuantity:1,sourceUnit:'PZ',quantityBase:0,sourceNetUnit:6.150,netUnitBase:0,grossUnitBase:0,netTotal:6.15,grossTotal:7.503,vatRate:22,affectsStock:false}
+ ]});
+
+ state.audit_logs.push({id:next(state.audit_logs),action:'caricamento fatture agosto',entity_type:'warehouse',entity_id:null,details:`Nuove fatture aggiunte: ${added}; documenti già presenti e saltati: ${skipped}; unità di carico registrate: ${stockUnits}. 34785/Q Alescio resta parziale finché non viene caricata la pagina 2/2.`,created_at:now});
+ state.meta[marker]={applied_at:now,added_invoices:added,skipped_existing:skipped,stock_units_added:stockUnits,documents:['70682/FAC 05/08/2026','34785/Q 13/08/2026 pagina 1/2','76043 14/08/2026'],alescio_partial:true};
+ return true;
+};
+})();
