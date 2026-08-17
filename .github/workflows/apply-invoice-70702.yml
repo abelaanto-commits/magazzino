@@ -1,0 +1,64 @@
+name: Activate Unigroup 70702 migration
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-invoice-70702.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Activate invoice 70702 migration
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+
+          script='<script src="invoice_70702_20260805.js?v=2.1.13"></script>'
+          anchor='<script src="invoice_75230_20260813.js?v=2.1.12"></script>'
+          if script not in s:
+              if anchor not in s:
+                  raise SystemExit('invoice 75230 script anchor not found')
+              s=s.replace(anchor, anchor+'\n'+script, 1)
+
+          old="i=window.applyInvoice75230?window.applyInvoice75230(state):false;if(a||b||c||d||e||f||g||h||i){await cloudSave();return true}return false}"
+          new="i=window.applyInvoice75230?window.applyInvoice75230(state):false,j=window.applyInvoice70702?window.applyInvoice70702(state):false;if(a||b||c||d||e||f||g||h||i||j){await cloudSave();return true}return false}"
+          if old in s:
+              s=s.replace(old,new,1)
+          elif new not in s:
+              raise SystemExit('applyPendingMigrations anchor not found')
+
+          s=s.replace("app.toast?.('Fattura 75230 caricata e magazzino aggiornato')","app.toast?.('Magazzino aggiornato con le nuove fatture')")
+          s=s.replace('2.1.12','2.1.13')
+          p.write_text(s,encoding='utf-8')
+
+          check=p.read_text(encoding='utf-8')
+          required=['invoice_70702_20260805.js?v=2.1.13','window.applyInvoice70702','2.1.13']
+          missing=[x for x in required if x not in check]
+          if missing:
+              raise SystemExit('Missing expected patches: '+', '.join(missing))
+
+      - name: Validate migration JavaScript
+        run: node --check invoice_70702_20260805.js
+
+      - name: Commit activation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "No changes required"
+          else
+            git commit -m "Load missing Unigroup 70702 and repair Tanqueray Ten stock"
+            git push
+          fi
