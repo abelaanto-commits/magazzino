@@ -29,7 +29,7 @@ window.applyConsumption20260814=function(state){
   peachvodka:[['Vodka pesca 1 L','Vodka pesca'],2],
   vermouth:[['Vermouth rosso 1 L','Vermouth rosso'],6],
   bitter:[['Bitter Martini 1 L','APERITIVO BITTER MARTINI LT 1'],8],
-  whiskey:[['Bulleit','Whisky Bulleit 1 L','Whiskey Bulleit'],1],
+  whiskey:[['Whisky Four Roses 1 L','Whiskey Four Roses 1 L','Four Roses'],1],
   aperol:[['Aperol 1 L','Aperol'],2],
   prosecco:[['Prosecco Serena','Prosecco'],11],
   tanq0:[['Gin Tanqueray 0.0 70 cl','GIN TANQUERAY ALCOOL FREE CL 70'],2],
@@ -53,7 +53,6 @@ window.applyConsumption20260814=function(state){
  for(const [key,[names]] of Object.entries(specs)){P[key]=findProduct(names);if(!P[key])missing.push(names[0])}
  if(missing.length)throw new Error('Consumo 14/08 non caricato: prodotti mancanti nel catalogo: '+missing.join(', '));
 
- // Ripulisce solo un eventuale tentativo incompleto di questa stessa migrazione.
  const oldLineIds=new Set(state.consumption_lines.filter(x=>String(x.notes||'').includes(prefix)).map(x=>Number(x.id)));
  if(oldLineIds.size){state.movements=state.movements.filter(m=>!(m.source_type==='consumption_line'&&oldLineIds.has(Number(m.source_id))));state.consumption_lines=state.consumption_lines.filter(x=>!oldLineIds.has(Number(x.id)))}
 
@@ -61,32 +60,14 @@ window.applyConsumption20260814=function(state){
  if(!event){event={id:next(state.events),event_date:date,name:'Serata 14/08',location:'',notes:'Consumi caricati da riepilogo operativo',created_at:now};state.events.push(event)}
  const ensureArea=(names,canonical)=>{let a=state.areas.find(x=>names.some(n=>clean(x.name)===clean(n)));if(!a){a={id:next(state.areas),name:canonical,active:1,created_at:now};state.areas.push(a)}return a};
  const bar1=ensureArea(['Bar 1','Bar1'],'Bar 1'),bar2=ensureArea(['Bar 2','Bar2'],'Bar 2'),tables=ensureArea(['Tavoli','Tables'],'Tavoli');
-
  const groups=[
-  {area:bar1,label:'BAR1',display:'Bar 1',entries:[
-   [P.tanq,35],[P.vodka,13],[P.rumwhite,1],[P.triple,1],[P.fragvodka,1],[P.peachvodka,2],[P.vermouth,6],[P.bitter,8],[P.whiskey,1],[P.aperol,2],[P.prosecco,11],[P.tanq0,2],
-   [P.lemon,37],[P.tonica,58],[P.coca,9],[P.strawberry,2],[P.sweet,5],[P.cups355,45],[P.cups250,6],[P.straws,2]
-  ]},
-  {area:bar2,label:'BAR2',display:'Bar 2',entries:[
-   [P.tanq,13],[P.vodka,2],[P.vermouth,1],[P.bitter,1],[P.fragvodka,1],[P.peachvodka,1],[P.prosecco,4],[P.cups355,18],[P.cups250,4],[P.straws,1],
-   [P.lemon,25],[P.tonica,54],[P.strawberry,1],[P.sweet,1],[P.coca,8],[P.orange,2],[P.pineapple,1]
-  ]},
-  {area:tables,label:'TAVOLI',display:'Tavoli',entries:[
-   [P.tanq,36],[P.tanq10,2],[P.ciroc,1],[P.prosecco,4],[P.ketel,2],[P.donjulio,6],[P.casamigos,1],[P.cups250,16],[P.lemon,41],[P.tonica,57]
-  ]}
+  {area:bar1,label:'BAR1',display:'Bar 1',entries:[[P.tanq,35],[P.vodka,13],[P.rumwhite,1],[P.triple,1],[P.fragvodka,1],[P.peachvodka,2],[P.vermouth,6],[P.bitter,8],[P.whiskey,1],[P.aperol,2],[P.prosecco,11],[P.tanq0,2],[P.lemon,37],[P.tonica,58],[P.coca,9],[P.strawberry,2],[P.sweet,5],[P.cups355,45],[P.cups250,6],[P.straws,2]]},
+  {area:bar2,label:'BAR2',display:'Bar 2',entries:[[P.tanq,13],[P.vodka,2],[P.vermouth,1],[P.bitter,1],[P.fragvodka,1],[P.peachvodka,1],[P.prosecco,4],[P.cups355,18],[P.cups250,4],[P.straws,1],[P.lemon,25],[P.tonica,54],[P.strawberry,1],[P.sweet,1],[P.coca,8],[P.orange,2],[P.pineapple,1]]},
+  {area:tables,label:'TAVOLI',display:'Tavoli',entries:[[P.tanq,36],[P.tanq10,2],[P.ciroc,1],[P.prosecco,4],[P.ketel,2],[P.donjulio,6],[P.casamigos,1],[P.cups250,16],[P.lemon,41],[P.tonica,57]]}
  ];
  let loadedLines=0,loadedUnits=0;
- for(const group of groups){
-  for(const [p,qty] of group.entries){
-   const code=`${prefix}${group.label}-${p.id}`;
-   const cost=typeof avgCost==='function'?Number(avgCost(p.id)||0):0;
-   const cid=next(state.consumption_lines);
-   state.consumption_lines.push({id:cid,event_id:event.id,area_id:group.area.id,product_id:p.id,quantity_base:qty,unit:p.base_unit,cost_unit:cost,cost_total:qty*cost,notes:`Consumo 14/08 · ${group.display} · ${code}`,source_type:'manual_import',source_id:null,created_at:now});
-   state.movements.push({id:next(state.movements),movement_date:date,movement_type:'consumo',product_id:p.id,quantity_delta:-qty,unit_cost:cost,source_type:'consumption_line',source_id:cid,area_id:group.area.id,user_id:null,notes:`Consumo 14/08 · ${group.display} [${code}]`,created_at:now});
-   loadedLines++;loadedUnits+=qty;
-  }
- }
- state.audit_logs.push({id:next(state.audit_logs),action:'caricamento consumi 14/08/2026',entity_type:'event',entity_id:event.id,details:'Caricati 47 consumi: Bar 1 20 righe / 247 unità, Bar 2 17 righe / 138 unità, Tavoli 10 righe / 166 unità. Totale 551 unità. Mappature confermate: Vodka=Smirnoff, Rum=Rum bianco, Whiskey=Bulleit, Coca-Cola=1.5 L.',created_at:now});
+ for(const group of groups){for(const [p,qty] of group.entries){const code=`${prefix}${group.label}-${p.id}`;const cost=typeof avgCost==='function'?Number(avgCost(p.id)||0):0;const cid=next(state.consumption_lines);state.consumption_lines.push({id:cid,event_id:event.id,area_id:group.area.id,product_id:p.id,quantity_base:qty,unit:p.base_unit,cost_unit:cost,cost_total:qty*cost,notes:`Consumo 14/08 · ${group.display} · ${code}`,source_type:'manual_import',source_id:null,created_at:now});state.movements.push({id:next(state.movements),movement_date:date,movement_type:'consumo',product_id:p.id,quantity_delta:-qty,unit_cost:cost,source_type:'consumption_line',source_id:cid,area_id:group.area.id,user_id:null,notes:`Consumo 14/08 · ${group.display} [${code}]`,created_at:now});loadedLines++;loadedUnits+=qty}}
+ state.audit_logs.push({id:next(state.audit_logs),action:'caricamento consumi 14/08/2026',entity_type:'event',entity_id:event.id,details:'Caricati 47 consumi: Bar 1 20 righe / 247 unità, Bar 2 17 righe / 138 unità, Tavoli 10 righe / 166 unità. Totale 551 unità. Mappature: Vodka=Smirnoff, Rum=Rum bianco, Whiskey=Four Roses, Coca-Cola=1.5 L.',created_at:now});
  state.meta[marker]={applied_at:now,event_id:event.id,event_date:date,loaded_lines:loadedLines,total_units:loadedUnits,bar1_units:247,bar2_units:138,tables_units:166,anti_duplicate:true};
  return true;
 };
