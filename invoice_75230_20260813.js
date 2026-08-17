@@ -2,7 +2,7 @@
 'use strict';
 
 window.applyInvoice75230=function(state){
- const marker='invoice_unigroup_75230_20260813_v1';
+ const marker='invoice_unigroup_75230_20260813_v2';
  state.meta=state.meta||{};
  if(state.meta[marker])return false;
  state.suppliers=Array.isArray(state.suppliers)?state.suppliers:[];
@@ -21,8 +21,8 @@ window.applyInvoice75230=function(state){
  if(!sup){sup={id:next(state.suppliers),name:'UNIGROUP S.P.A.',vat_number:'01433500897',created_at:now};state.suppliers.push(sup)}
  const date='2026-08-13',number='75230';
  let inv=state.invoices.find(i=>Number(i.supplier_id)===Number(sup.id)&&clean(i.invoice_number)===clean(number)&&String(i.invoice_date)===date);
- if(!inv){inv={id:next(state.invoices),supplier_id:sup.id,invoice_number:number,invoice_date:date,total_gross:4222.98,document_paths:JSON.stringify([]),source_type:'FOTO',status:'confermato',notes:'Fattura accompagnatoria UNIGROUP 13/08/2026. Gin Tanqueray Ten 70 cl, 8 pz, riga con asterisco: merce respinta/non arrivata e quindi esclusa dal carico di magazzino.',created_at:now};state.invoices.push(inv)}
- else{inv.total_gross=4222.98;inv.source_type=inv.source_type||'FOTO';inv.status='confermato';inv.notes='Fattura accompagnatoria UNIGROUP 13/08/2026. Gin Tanqueray Ten 70 cl, 8 pz, riga con asterisco: merce respinta/non arrivata e quindi esclusa dal carico di magazzino.'}
+ if(!inv){inv={id:next(state.invoices),supplier_id:sup.id,invoice_number:number,invoice_date:date,total_gross:3999.48,document_paths:JSON.stringify([]),source_type:'FOTO',status:'confermato',notes:'Fattura accompagnatoria UNIGROUP 13/08/2026. Totale documento originale 4.222,98 EUR; valore effettivamente ricevuto e caricato 3.999,48 EUR. Gin Tanqueray Ten 70 cl, 8 pz, riga con asterisco: merce respinta/non arrivata e quindi esclusa dal carico di magazzino.',created_at:now};state.invoices.push(inv)}
+ else{inv.total_gross=3999.48;inv.source_type=inv.source_type||'FOTO';inv.status='confermato';inv.notes='Fattura accompagnatoria UNIGROUP 13/08/2026. Totale documento originale 4.222,98 EUR; valore effettivamente ricevuto e caricato 3.999,48 EUR. Gin Tanqueray Ten 70 cl, 8 pz, riga con asterisco: merce respinta/non arrivata e quindi esclusa dal carico di magazzino.'}
 
  // Riconcilia un'eventuale importazione precedente della stessa fattura: elimina righe/movimenti e ricostruisce solo la merce effettivamente ricevuta.
  const oldLineIds=new Set(state.invoice_lines.filter(l=>Number(l.invoice_id)===Number(inv.id)).map(l=>Number(l.id)));
@@ -62,7 +62,7 @@ window.applyInvoice75230=function(state){
  // Spesa accessoria visibile in fattura, non movimenta il magazzino.
  const expId=next(state.invoice_lines);state.invoice_lines.push({id:expId,invoice_id:inv.id,product_id:null,raw_description:'SPESE ACCESSORIE / VARIE',source_quantity:0,source_unit:'',quantity_base:0,net_unit_price:0,gross_unit_price:0,net_total:0.26,gross_total:0.3172,vat_rate:22,is_free:0,affects_stock:0,notes:'Voce non inventariabile',source_net_unit_price:0.26});
  state.audit_logs.push({id:next(state.audit_logs),action:'caricamento fattura UNIGROUP 75230',entity_type:'invoice',entity_id:inv.id,details:`Caricate 12 righe ricevute e ${stockUnits} unità/stecche/confezioni. Esclusa integralmente la riga con asterisco: Gin Tanqueray Ten 70 cl, 8 pz a 22,90 € imponibile, merce respinta/non arrivata. Totale documento originale 4.222,98 €; la riga respinta non genera carico.`,created_at:now});
- state.meta[marker]={applied_at:now,invoice_id:inv.id,invoice_number:number,invoice_date:date,stock_units:stockUnits,excluded_line:{description:'GIN TANQUERAY TEN CL 70',quantity:8,net_unit_price:22.90,reason:'merce respinta/non arrivata'},document_total_gross:4222.98,received_lines_gross:3999.4772,warehouse_updated:true};
+ state.meta[marker]={applied_at:now,invoice_id:inv.id,invoice_number:number,invoice_date:date,stock_units:stockUnits,excluded_line:{description:'GIN TANQUERAY TEN CL 70',quantity:8,net_unit_price:22.90,reason:'merce respinta/non arrivata'},document_total_gross:3999.48,received_lines_gross:3999.4772,warehouse_updated:true};
  return true;
 };
 })();
