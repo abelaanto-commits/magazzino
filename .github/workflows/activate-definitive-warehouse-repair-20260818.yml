@@ -1,0 +1,48 @@
+name: Activate definitive warehouse repair
+
+on:
+  push:
+    paths:
+      - '.github/workflows/activate-definitive-warehouse-repair-20260818.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Activate definitive repair
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          anchor='<script src="whiskey_repair_20260817.js?v=2.1.18"></script>'
+          tag='<script src="warehouse_definitive_repair_20260818.js?v=2.1.19"></script>'
+          if 'warehouse_definitive_repair_20260818.js' not in s:
+              if anchor not in s: raise SystemExit('Whiskey repair script anchor not found')
+              s=s.replace(anchor,anchor+'\n'+tag,1)
+          old="n=window.applyWhiskeyRepair20260817?window.applyWhiskeyRepair20260817(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n){await cloudSave();return true}return false"
+          new="n=window.applyWhiskeyRepair20260817?window.applyWhiskeyRepair20260817(state):false,o=window.applyWarehouseDefinitiveRepair20260818?window.applyWarehouseDefinitiveRepair20260818(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n||o){await cloudSave();return true}return false"
+          if 'applyWarehouseDefinitiveRepair20260818' not in s:
+              if old not in s: raise SystemExit('Migration chain anchor not found')
+              s=s.replace(old,new,1)
+          s=s.replace('2.1.18','2.1.19')
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -q 'warehouse_definitive_repair_20260818.js?v=2.1.19' index.html
+          grep -q 'applyWarehouseDefinitiveRepair20260818' index.html
+          grep -q 'cloud=2.1.19' index.html
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html warehouse_definitive_repair_20260818.js
+          git commit -m 'Apply transactional definitive warehouse repair'
+          git push
