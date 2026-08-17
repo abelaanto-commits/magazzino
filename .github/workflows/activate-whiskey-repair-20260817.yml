@@ -1,0 +1,48 @@
+name: Activate Four Roses whiskey repair
+
+on:
+  push:
+    paths:
+      - '.github/workflows/activate-whiskey-repair-20260817.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Activate repair
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          anchor='<script src="pride_repair_20260817.js?v=2.1.17"></script>'
+          tag='<script src="whiskey_repair_20260817.js?v=2.1.18"></script>'
+          if 'whiskey_repair_20260817.js' not in s:
+              if anchor not in s: raise SystemExit('Pride script anchor not found')
+              s=s.replace(anchor,anchor+'\n'+tag,1)
+          old="m=window.applyPrideRepair20260817?window.applyPrideRepair20260817(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m){await cloudSave();return true}return false"
+          new="m=window.applyPrideRepair20260817?window.applyPrideRepair20260817(state):false,n=window.applyWhiskeyRepair20260817?window.applyWhiskeyRepair20260817(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n){await cloudSave();return true}return false"
+          if 'applyWhiskeyRepair20260817' not in s:
+              if old not in s: raise SystemExit('Migration anchor not found')
+              s=s.replace(old,new,1)
+          s=s.replace('2.1.17','2.1.18')
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -q 'whiskey_repair_20260817.js?v=2.1.18' index.html
+          grep -q 'applyWhiskeyRepair20260817' index.html
+          grep -q 'cloud=2.1.18' index.html
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html consumption_20260814.js whiskey_repair_20260817.js
+          git commit -m 'Fix 14 August whiskey stock mapping to Four Roses'
+          git push
