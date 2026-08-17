@@ -1,0 +1,50 @@
+name: Finalize Unigroup 75230 audit totals
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-invoice-75230-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch totals and force final reconciliation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('invoice_75230_20260813.js')
+          s=p.read_text()
+          s=s.replace('invoice_unigroup_75230_20260813_v2','invoice_unigroup_75230_20260813_v3')
+          s=s.replace('document_total_gross:3999.48,received_lines_gross:3999.4772','document_total_gross:4222.98,received_total_gross:3999.48,received_lines_gross:3999.4772')
+          p.write_text(s)
+
+          idx=Path('index.html')
+          s=idx.read_text()
+          s=s.replace('404.html?cloud=2.1.11','404.html?cloud=2.1.12')
+          s=s.replace('invoice_75230_20260813.js?v=2.1.11','invoice_75230_20260813.js?v=2.1.12')
+          s=s.replace('warehouse_extensions.js?v=2.1.11','warehouse_extensions.js?v=2.1.12')
+          s=s.replace('<span>2.1.11</span>','<span>2.1.12</span>')
+          idx.write_text(s)
+          PY
+      - name: Check JavaScript syntax
+        run: node --check invoice_75230_20260813.js
+      - name: Verify final state
+        run: |
+          grep -q 'invoice_unigroup_75230_20260813_v3' invoice_75230_20260813.js
+          grep -q 'total_gross:3999.48' invoice_75230_20260813.js
+          grep -q 'document_total_gross:4222.98,received_total_gross:3999.48' invoice_75230_20260813.js
+          grep -q 'invoice_75230_20260813.js?v=2.1.12' index.html
+      - name: Commit final correction
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add invoice_75230_20260813.js index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Finalize Unigroup 75230 received and original totals'
+          git push
