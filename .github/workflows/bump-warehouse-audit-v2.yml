@@ -1,0 +1,40 @@
+name: Publish warehouse audit v2
+
+on:
+  push:
+    paths:
+      - '.github/workflows/bump-warehouse-audit-v2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Bump warehouse audit cache version
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          if 'warehouse_audit_20260817.js' not in s or 'applyWarehouseAudit20260817' not in s:
+              raise SystemExit('warehouse audit is not activated')
+          s=s.replace('2.1.15','2.1.16')
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -q 'warehouse_audit_20260817.js?v=2.1.16' index.html
+          grep -q 'cloud=2.1.16' index.html
+      - name: Commit application update
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Publish full warehouse integrity audit v2'
+          git push
