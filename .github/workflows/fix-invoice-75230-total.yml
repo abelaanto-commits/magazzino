@@ -1,0 +1,60 @@
+name: Fix Unigroup 75230 received total
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-invoice-75230-total.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch invoice and force reconciliation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('invoice_75230_20260813.js')
+          s = p.read_text()
+          s = s.replace("invoice_unigroup_75230_20260813_v1", "invoice_unigroup_75230_20260813_v2")
+          s = s.replace("total_gross:4222.98", "total_gross:3999.48")
+          s = s.replace("inv.total_gross=4222.98", "inv.total_gross=3999.48")
+          s = s.replace(
+              "Fattura accompagnatoria UNIGROUP 13/08/2026. Gin Tanqueray Ten 70 cl, 8 pz, riga con asterisco: merce respinta/non arrivata e quindi esclusa dal carico di magazzino.",
+              "Fattura accompagnatoria UNIGROUP 13/08/2026. Totale documento originale 4.222,98 EUR; valore effettivamente ricevuto e caricato 3.999,48 EUR. Gin Tanqueray Ten 70 cl, 8 pz, riga con asterisco: merce respinta/non arrivata e quindi esclusa dal carico di magazzino."
+          )
+          s = s.replace(
+              "document_total_gross:4222.98,received_lines_gross:3999.4772",
+              "document_total_gross:4222.98,received_total_gross:3999.48,received_lines_gross:3999.4772"
+          )
+          p.write_text(s)
+
+          idx = Path('index.html')
+          s = idx.read_text()
+          s = s.replace('404.html?cloud=2.1.10', '404.html?cloud=2.1.11')
+          s = s.replace('invoice_75230_20260813.js?v=2.1.10', 'invoice_75230_20260813.js?v=2.1.11')
+          s = s.replace('warehouse_extensions.js?v=2.1.10', 'warehouse_extensions.js?v=2.1.11')
+          s = s.replace('<span>2.1.10</span>', '<span>2.1.11</span>')
+          idx.write_text(s)
+          PY
+      - name: Check JavaScript syntax
+        run: node --check invoice_75230_20260813.js
+      - name: Verify fix
+        run: |
+          grep -q "invoice_unigroup_75230_20260813_v2" invoice_75230_20260813.js
+          grep -q "total_gross:3999.48" invoice_75230_20260813.js
+          grep -q "inv.total_gross=3999.48" invoice_75230_20260813.js
+          grep -q "invoice_75230_20260813.js?v=2.1.11" index.html
+      - name: Commit correction
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add invoice_75230_20260813.js index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Fix Unigroup 75230 received total to 3999.48'
+          git push
