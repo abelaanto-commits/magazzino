@@ -1,0 +1,69 @@
+name: Apply Unigroup 75230 invoice
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-invoice-75230.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch application
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          text=p.read_text(encoding='utf-8')
+          script='<script src="invoice_75230_20260813.js?v=2.1.10"></script>'
+          if script not in text:
+              anchor='<script src="invoice_batch_20260813_14.js?v=2.1.9"></script>'
+              if anchor not in text:
+                  raise SystemExit('invoice batch script anchor not found')
+              text=text.replace(anchor,anchor+'\n'+script,1)
+          old='g=applyFestuniXXLConsumption(state),h=window.applyInvoiceBatchAug1314?window.applyInvoiceBatchAug1314(state):false;if(a||b||c||d||e||f||g||h)'
+          new='g=applyFestuniXXLConsumption(state),h=window.applyInvoiceBatchAug1314?window.applyInvoiceBatchAug1314(state):false,i=window.applyInvoice75230?window.applyInvoice75230(state):false;if(a||b||c||d||e||f||g||h||i)'
+          if old in text:
+              text=text.replace(old,new,1)
+          elif 'window.applyInvoice75230' not in text:
+              raise SystemExit('migration call site not found')
+          text=text.replace('cloud=2.1.9','cloud=2.1.10')
+          text=text.replace("warehouse_extensions.js?v=2.1.9","warehouse_extensions.js?v=2.1.10")
+          text=text.replace('<span>2.1.9</span>','<span>2.1.10</span>')
+          text=text.replace("app.toast?.('Magazzino aggiornato con le nuove fatture')","app.toast?.('Fattura 75230 caricata e magazzino aggiornato')")
+          p.write_text(text,encoding='utf-8')
+          PY
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          node --check invoice_75230_20260813.js
+          python <<'PY'
+          from pathlib import Path
+          import re
+          text=Path('index.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?: [^>]*)?>(.*?)</script>',text,re.S)
+          Path('/tmp/index.js').write_text(scripts[-1],encoding='utf-8')
+          PY
+          node --check /tmp/index.js
+
+      - name: Commit application update
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'Nothing to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Load Unigroup 75230 excluding rejected Tanqueray Ten'
+          git push
