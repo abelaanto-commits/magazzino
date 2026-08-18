@@ -2,11 +2,11 @@
 'use strict';
 
 window.applyOpeningBalanceRebase20260818=function(state){
- const marker='opening_balance_rebase_20260818_v2';
+ const marker='opening_balance_rebase_20260818_v3';
  state.meta=state.meta||{};
  if(state.meta[marker])return false;
  const w=JSON.parse(JSON.stringify(state));
- for(const k of ['products','movements','audit_logs'])w[k]=Array.isArray(w[k])?w[k]:[];
+ for(const k of ['products','product_aliases','invoice_lines','consumption_lines','movements','audit_logs'])w[k]=Array.isArray(w[k])?w[k]:[];
  w.meta=w.meta||{};
  const now=new Date().toISOString();
  const next=list=>list.length?Math.max(...list.map(x=>Number(x.id)||0))+1:1;
@@ -15,7 +15,6 @@ window.applyOpeningBalanceRebase20260818=function(state){
  const mustProduct=name=>{const p=product(name);if(!p)throw new Error('Ricalibrazione giacenza iniziale non applicata: prodotto non trovato: '+name);return p};
  const stockOf=pid=>w.movements.reduce((sum,m)=>sum+(Number(m.product_id)===Number(pid)?Number(m.quantity_delta||0):0),0);
 
- // Remove only obsolete temporary movements from the abandoned 18/08 stocktake approach, if they ever ran.
  const beforeRemove=w.movements.length;
  w.movements=w.movements.filter(m=>{
    const notes=String(m.notes||'');
@@ -26,11 +25,30 @@ window.applyOpeningBalanceRebase20260818=function(state){
  const removedTemporaryMovements=beforeRemove-w.movements.length;
  delete w.meta.physical_stocktake_20260818_v1;
 
+ // Lemon is one single warehouse reference. Fanta Lemon, Verdello, Kinley Bitter Lemon and old Tomarchio
+ // all resolve to the same SKU. Authoritative physical total: 63 + 43 + 38 fridge = 144 bottles.
+ const lemon=mustProduct('Lemon');
+ const fantaLemon=product('Fanta Lemon 90 cl');
+ let mergedFantaLemon=false;
+ if(fantaLemon&&Number(fantaLemon.id)!==Number(lemon.id)){
+   for(const l of w.invoice_lines)if(Number(l.product_id)===Number(fantaLemon.id))l.product_id=lemon.id;
+   for(const l of w.consumption_lines)if(Number(l.product_id)===Number(fantaLemon.id))l.product_id=lemon.id;
+   for(const m of w.movements)if(Number(m.product_id)===Number(fantaLemon.id))m.product_id=lemon.id;
+   for(const a of w.product_aliases)if(Number(a.product_id)===Number(fantaLemon.id))a.product_id=lemon.id;
+   w.products=w.products.filter(p=>Number(p.id)!==Number(fantaLemon.id));
+   mergedFantaLemon=true;
+ }
+ const lemonAliases=['FANTA LEMON CL.90 (6) PET','LIMONATA "VERDELLO" CL 75X6 TOMARCHIO','KINLEY BITTER LEMON PET 90 (6)','KINLEY BITTER LEMON PET 90 (6) - OMAGGIO','KINLEY BITTER LEMON PET 90 (6) – OMAGGIO','LIMONATA TOMARCHIO PET LT.1,5(6)'];
+ for(const alias of lemonAliases){
+   let a=w.product_aliases.find(x=>norm(x.alias)===norm(alias));
+   if(a)a.product_id=lemon.id;
+   else w.product_aliases.push({id:next(w.product_aliases),product_id:lemon.id,alias,supplier_id:null});
+ }
+ {const seen=new Set();w.product_aliases=w.product_aliases.filter(a=>{const k=`${Number(a.product_id)||0}|${Number(a.supplier_id)||0}|${norm(a.alias)}`;if(seen.has(k))return false;seen.add(k);return true})}
+
  const exactTargets=[
-  // Alcolici definitivi
-  ['Gin Tanqueray 1 L',74],['Gin Tanqueray Ten 70 cl',10],['Gin Tanqueray 0.0 70 cl',3],['Vodka Smirnoff Red 1 L',32],['Vodka fragola 1 L',5],['Vodka pesca 1 L',10],['Rum bianco 1 L',14],['Rum Kingston Wray Silver 1 L',1],['Rum scuro',5],['Triple Sec 1 L',14],['Vermouth rosso 1 L',34],['Bitter Martini 1 L',27],['Campari 1 L',2],['Aperol 1 L',12],['Whisky Four Roses 1 L',0],['Bulleit',1],["Whiskey Jack Daniel's 1 L",1],['Prosecco Serena',43],['Moët Réserve Impériale',4],['Tequila Espolon Blanco 70 cl',4],
-  // Analcolici/mixer definitivi comunicati successivamente
-  ['Polpa lime 100% Sour Lime ODK 750 ml',1],['Sweet & Sour',30],['Sciroppo fragola',19],['Succo ananas',6],['Succo arancia',9],['Succo cranberry',4],['Red Bull 25 cl',50],['Fanta Orange lattina 33 cl',0],['Sprite lattina 33 cl',0],['Coca-Cola lattina 33 cl',0]
+  ['Gin Tanqueray 1 L',74],['Gin Tanqueray Ten 70 cl',10],['Gin Tanqueray 0.0 70 cl',3],['Vodka Smirnoff Red 1 L',32],['Vodka fragola 1 L',6],['Vodka pesca 1 L',11],['Rum bianco 1 L',14],['Rum Kingston Wray Silver 1 L',1],['Rum scuro',5],['Triple Sec 1 L',14],['Vermouth rosso 1 L',34],['Bitter Martini 1 L',27],['Campari 1 L',2],['Aperol 1 L',12],['Whisky Four Roses 1 L',0],['Bulleit',1],["Whiskey Jack Daniel's 1 L",1],['Prosecco Serena',43],['Moët Réserve Impériale',4],['Tequila Espolon Blanco 70 cl',4],
+  ['Polpa lime 100% Sour Lime ODK 750 ml',1],['Sweet & Sour',30],['Sciroppo fragola',19],['Succo ananas',6],['Succo arancia',9],['Succo cranberry',4],['Red Bull 25 cl',50],['Fanta Orange lattina 33 cl',0],['Sprite lattina 33 cl',0],['Coca-Cola lattina 33 cl',0],['Lemon',144]
  ];
 
  const changes=[];
@@ -53,13 +71,9 @@ window.applyOpeningBalanceRebase20260818=function(state){
    changes.push({product:p.name,before,target,opening_delta:delta,after:stockOf(p.id)});
  }
 
- // Coca-Cola bottiglie: l'utente ha fornito solo il totale complessivo, non il formato.
- // Preserve historical format records but force the aggregate to 13; if the legacy SKU is negative,
- // shift baseline between the two bottle SKUs so neither displays a physically impossible negative value.
  const cocaLegacy=mustProduct('Coca-Cola'),coca15=mustProduct('Coca-Cola 1.5 L');
- let legacyBefore=stockOf(cocaLegacy.id),coca15Before=stockOf(coca15.id),combinedBefore=legacyBefore+coca15Before;
- let combinedDelta=13-combinedBefore;
- adjustOpening(coca15,combinedDelta,13,'target Coca-Cola bottiglie complessive 13');
+ const legacyBefore=stockOf(cocaLegacy.id),coca15Before=stockOf(coca15.id),combinedBefore=legacyBefore+coca15Before;
+ adjustOpening(coca15,13-combinedBefore,13,'target Coca-Cola bottiglie complessive 13');
  if(stockOf(cocaLegacy.id)<0){
    const transfer=-stockOf(cocaLegacy.id);
    adjustOpening(cocaLegacy,transfer,0,'normalizzazione SKU Coca-Cola storico a zero');
@@ -71,10 +85,11 @@ window.applyOpeningBalanceRebase20260818=function(state){
 
  const errors=[];
  for(const [name,target] of exactTargets){const p=mustProduct(name),actual=stockOf(p.id);if(actual!==target)errors.push(`${p.name}: atteso ${target}, ottenuto ${actual}`)}
+ if(product('Fanta Lemon 90 cl'))errors.push('Fanta Lemon 90 cl deve essere unificato in Lemon ma risulta ancora presente');
  if(errors.length)throw new Error('Ricalibrazione giacenza iniziale fallita: '+errors.join('; '));
 
- w.audit_logs.push({id:next(w.audit_logs),action:'ricalibrazione giacenza iniziale definitiva',entity_type:'warehouse',entity_id:null,details:`Giacenze finali comunicate dall'utente assorbite nella base iniziale del 05/06, senza creare inventari al 18/08. Aggiornati alcolici e analcolici certi; Coca-Cola bottiglie fissata a 13 complessive. Lemon/Fanta Lemon/Verdello/Kinley e Tonica lasciati invariati perché il dato Lemon è ancora ambiguo (38 frigo indicati come ipotesi) e la Tonica è stata indicata solo come circa corretta. Rimossi ${removedTemporaryMovements} eventuali movimenti temporanei 18/08.`,created_at:now});
- w.meta[marker]={applied_at:now,method:'opening_balance_rebase',opening_date:'2026-06-05',no_stocktake_20260818:true,removed_temporary_1808_movements:removedTemporaryMovements,authoritative_targets:Object.fromEntries(exactTargets),coca_cola_bottles_total:13,coca_cola_split:{legacy:stockOf(cocaLegacy.id),coca_1_5l:stockOf(coca15.id)},lemon_pending:true,tonic_unchanged:true,changes,unlisted_products_unchanged:true};
+ w.audit_logs.push({id:next(w.audit_logs),action:'ricalibrazione giacenza iniziale definitiva v3',entity_type:'warehouse',entity_id:null,details:`Nessun inventario registrato al 18/08. Lemon unificato in una sola referenza e fissato a 144 bottiglie (63 + 43 + 38 frigo). Vodka fragola fissata a 6 e vodka pesca a 11. Tonica lasciata invariata. Aggiornati tutti gli altri target certi comunicati dall'utente. Rimossi ${removedTemporaryMovements} eventuali movimenti temporanei 18/08.`,created_at:now});
+ w.meta[marker]={applied_at:now,method:'opening_balance_rebase',opening_date:'2026-06-05',no_stocktake_20260818:true,removed_temporary_1808_movements:removedTemporaryMovements,authoritative_targets:Object.fromEntries(exactTargets),lemon_unified:true,lemon_total:144,lemon_breakdown:{fanta_verdello:63,kinley:43,fridge:38},coca_cola_bottles_total:13,coca_cola_split:{legacy:stockOf(cocaLegacy.id),coca_1_5l:stockOf(coca15.id)},tonic_unchanged:true,changes,unlisted_products_unchanged:true};
  for(const k of Object.keys(w))state[k]=w[k];
  return true;
 };
