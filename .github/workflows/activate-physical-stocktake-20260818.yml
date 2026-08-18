@@ -1,0 +1,48 @@
+name: Activate physical stocktake 18 August 2026
+
+on:
+  push:
+    paths:
+      - '.github/workflows/activate-physical-stocktake-20260818.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Activate stocktake migration
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          anchor='<script src="warehouse_definitive_repair_20260818.js?v=2.1.19"></script>'
+          tag='<script src="physical_stocktake_20260818.js?v=2.1.20"></script>'
+          if 'physical_stocktake_20260818.js' not in s:
+              if anchor not in s: raise SystemExit('Definitive repair script anchor not found')
+              s=s.replace(anchor,anchor+'\n'+tag,1)
+          old="o=window.applyWarehouseDefinitiveRepair20260818?window.applyWarehouseDefinitiveRepair20260818(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n||o){await cloudSave();return true}return false"
+          new="o=window.applyWarehouseDefinitiveRepair20260818?window.applyWarehouseDefinitiveRepair20260818(state):false,p=window.applyPhysicalStocktake20260818?window.applyPhysicalStocktake20260818(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n||o||p){await cloudSave();return true}return false"
+          if 'applyPhysicalStocktake20260818' not in s:
+              if old not in s: raise SystemExit('Migration chain anchor not found')
+              s=s.replace(old,new,1)
+          s=s.replace('2.1.19','2.1.20')
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -q 'physical_stocktake_20260818.js?v=2.1.20' index.html
+          grep -q 'applyPhysicalStocktake20260818' index.html
+          grep -q 'cloud=2.1.20' index.html
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html physical_stocktake_20260818.js
+          git commit -m 'Use physical warehouse count as stock source of truth'
+          git push
