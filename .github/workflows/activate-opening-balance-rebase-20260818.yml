@@ -1,0 +1,49 @@
+name: Activate opening balance rebase
+
+on:
+  push:
+    paths:
+      - '.github/workflows/activate-opening-balance-rebase-20260818.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Replace 18 August stocktake with opening balance rebase
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          s=s.replace('<script src="physical_stocktake_20260818.js?v=2.1.20"></script>\n','')
+          anchor='<script src="warehouse_definitive_repair_20260818.js?v=2.1.20"></script>'
+          tag='<script src="opening_balance_rebase_20260818.js?v=2.1.21"></script>'
+          if 'opening_balance_rebase_20260818.js' not in s:
+              if anchor not in s: raise SystemExit('Definitive repair script anchor not found')
+              s=s.replace(anchor,anchor+'\n'+tag,1)
+          old="o=window.applyWarehouseDefinitiveRepair20260818?window.applyWarehouseDefinitiveRepair20260818(state):false,p=window.applyPhysicalStocktake20260818?window.applyPhysicalStocktake20260818(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n||o||p){await cloudSave();return true}return false"
+          new="o=window.applyWarehouseDefinitiveRepair20260818?window.applyWarehouseDefinitiveRepair20260818(state):false,p=window.applyOpeningBalanceRebase20260818?window.applyOpeningBalanceRebase20260818(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n||o||p){await cloudSave();return true}return false"
+          if old not in s: raise SystemExit('Physical stocktake migration chain not found')
+          s=s.replace(old,new,1)
+          s=s.replace('2.1.20','2.1.21')
+          p.write_text(s,encoding='utf-8')
+          PY
+          ! grep -q 'physical_stocktake_20260818.js' index.html
+          grep -q 'opening_balance_rebase_20260818.js?v=2.1.21' index.html
+          grep -q 'applyOpeningBalanceRebase20260818' index.html
+          grep -q 'cloud=2.1.21' index.html
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html opening_balance_rebase_20260818.js
+          git commit -m 'Rebase opening balances instead of 18 August stocktake'
+          git push
