@@ -1,0 +1,49 @@
+name: Activate Nuccia Sole 21 August consumption
+
+on:
+  push:
+    paths:
+      - '.github/workflows/activate-nuccia-sole-20260821.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Activate 21 August consumption
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          anchor='<script src="opening_balance_rebase_20260818.js?v=2.1.23"></script>'
+          tag='<script src="consumption_20260821_nuccia_sole.js?v=2.1.24"></script>'
+          if 'consumption_20260821_nuccia_sole.js' not in s:
+              if anchor not in s: raise SystemExit('opening balance script anchor not found')
+              s=s.replace(anchor,anchor+'\n'+tag,1)
+          old="p=window.applyOpeningBalanceRebase20260818?window.applyOpeningBalanceRebase20260818(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n||o||p){await cloudSave();return true}return false"
+          new="p=window.applyOpeningBalanceRebase20260818?window.applyOpeningBalanceRebase20260818(state):false,q=window.applyNucciaSoleConsumption20260821?window.applyNucciaSoleConsumption20260821(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n||o||p||q){await cloudSave();return true}return false"
+          if 'applyNucciaSoleConsumption20260821' not in s:
+              if old not in s: raise SystemExit('migration chain anchor not found')
+              s=s.replace(old,new,1)
+          s=s.replace('2.1.23','2.1.24')
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -q 'consumption_20260821_nuccia_sole.js?v=2.1.24' index.html
+          grep -q 'applyNucciaSoleConsumption20260821' index.html
+          grep -q 'cloud=2.1.24' index.html
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html consumption_20260821_nuccia_sole.js
+          git commit -m 'Load Nuccia Sole 21 August consumption'
+          git push
