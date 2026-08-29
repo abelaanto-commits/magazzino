@@ -1,0 +1,49 @@
+name: Activate Compleanno 28 August consumption
+
+on:
+  push:
+    paths:
+      - '.github/workflows/activate-compleanno-20260828.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Activate 28 August consumption
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          anchor='<script src="consumption_20260821_nuccia_sole.js?v=2.1.25"></script>'
+          tag='<script src="consumption_20260828_compleanno.js?v=2.1.26"></script>'
+          if 'consumption_20260828_compleanno.js' not in s:
+              if anchor not in s: raise SystemExit('Nuccia 21/08 script anchor not found')
+              s=s.replace(anchor,anchor+'\n'+tag,1)
+          old="q=window.applyNucciaSoleConsumption20260821?window.applyNucciaSoleConsumption20260821(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n||o||p||q){await cloudSave();return true}return false"
+          new="q=window.applyNucciaSoleConsumption20260821?window.applyNucciaSoleConsumption20260821(state):false,r=window.applyCompleannoConsumption20260828?window.applyCompleannoConsumption20260828(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n||o||p||q||r){await cloudSave();return true}return false"
+          if 'applyCompleannoConsumption20260828' not in s:
+              if old not in s: raise SystemExit('migration chain anchor not found')
+              s=s.replace(old,new,1)
+          s=s.replace('2.1.25','2.1.26')
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -q 'consumption_20260828_compleanno.js?v=2.1.26' index.html
+          grep -q 'applyCompleannoConsumption20260828' index.html
+          grep -q 'cloud=2.1.26' index.html
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html consumption_20260828_compleanno.js
+          git commit -m 'Load Compleanno 28 August consumption'
+          git push
