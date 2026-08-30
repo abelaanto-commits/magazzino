@@ -1,0 +1,49 @@
+name: Activate premium format valuation 29 August
+
+on:
+  push:
+    paths:
+      - '.github/workflows/activate-premium-valuation-20260829.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Activate premium valuation
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          anchor='<script src="consumption_20260829_shiva.js?v=2.1.27"></script>'
+          tag='<script src="premium_formats_valuation_20260829.js?v=2.1.28"></script>'
+          if 'premium_formats_valuation_20260829.js' not in s:
+              if anchor not in s: raise SystemExit('SHIVA script anchor not found')
+              s=s.replace(anchor,anchor+'\n'+tag,1)
+          old="s=window.applyShivaConsumption20260829?window.applyShivaConsumption20260829(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n||o||p||q||r||s){await cloudSave();return true}return false"
+          new="s=window.applyShivaConsumption20260829?window.applyShivaConsumption20260829(state):false,t=window.applyPremiumFormatsValuation20260829?window.applyPremiumFormatsValuation20260829(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n||o||p||q||r||s||t){await cloudSave();return true}return false"
+          if 'applyPremiumFormatsValuation20260829' not in s:
+              if old not in s: raise SystemExit('Migration chain anchor not found')
+              s=s.replace(old,new,1)
+          s=s.replace('2.1.27','2.1.28')
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -q 'premium_formats_valuation_20260829.js?v=2.1.28' index.html
+          grep -q 'applyPremiumFormatsValuation20260829' index.html
+          grep -q 'cloud=2.1.28' index.html
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html premium_formats_valuation_20260829.js
+          git commit -m 'Load premium format valuation for Shiva'
+          git push
