@@ -1,0 +1,63 @@
+name: Activate Shiva 29 August consumption
+
+on:
+  push:
+    paths:
+      - '.github/workflows/activate-shiva-20260829.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate and activate SHIVA consumption
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          # Clean final validation in the migration script before activation.
+          js=Path('consumption_20260829_shiva.js')
+          s=js.read_text(encoding='utf-8')
+          bad=" const rbAfter=stock.call({},{}) // placeholder never used\n"
+          good=" if(Math.abs(stock(redbull.id))>1e-9)throw new Error('SHIVA 29/08: Red Bull non azzerata correttamente dopo lo scarico.');\n"
+          if bad in s:
+              s=s.replace(bad,good,1)
+          elif 'Red Bull non azzerata correttamente' not in s:
+              raise SystemExit('Red Bull validation anchor not found')
+          js.write_text(s,encoding='utf-8')
+
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          anchor='<script src="consumption_20260828_compleanno.js?v=2.1.26"></script>'
+          tag='<script src="consumption_20260829_shiva.js?v=2.1.27"></script>'
+          if 'consumption_20260829_shiva.js' not in s:
+              if anchor not in s: raise SystemExit('Compleanno script anchor not found')
+              s=s.replace(anchor,anchor+'\n'+tag,1)
+          old="r=window.applyCompleannoConsumption20260828?window.applyCompleannoConsumption20260828(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n||o||p||q||r){await cloudSave();return true}return false"
+          new="r=window.applyCompleannoConsumption20260828?window.applyCompleannoConsumption20260828(state):false,s=window.applyShivaConsumption20260829?window.applyShivaConsumption20260829(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n||o||p||q||r||s){await cloudSave();return true}return false"
+          if 'applyShivaConsumption20260829' not in s:
+              if old not in s: raise SystemExit('Migration chain anchor not found')
+              s=s.replace(old,new,1)
+          s=s.replace('2.1.26','2.1.27')
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -q 'consumption_20260829_shiva.js?v=2.1.27' index.html
+          grep -q 'applyShivaConsumption20260829' index.html
+          grep -q 'cloud=2.1.27' index.html
+          grep -q 'Red Bull non azzerata correttamente' consumption_20260829_shiva.js
+          ! grep -q 'placeholder never used' consumption_20260829_shiva.js
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html consumption_20260829_shiva.js; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html consumption_20260829_shiva.js
+          git commit -m 'Load Shiva 29 August consumption'
+          git push
