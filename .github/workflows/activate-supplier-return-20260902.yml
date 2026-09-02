@@ -1,0 +1,49 @@
+name: Activate supplier return 02 September
+
+on:
+  push:
+    paths:
+      - '.github/workflows/activate-supplier-return-20260902.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Activate supplier return
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          anchor='<script src="premium_formats_valuation_20260829.js?v=2.1.28"></script>'
+          tag='<script src="supplier_return_20260902.js?v=2.1.29"></script>'
+          if 'supplier_return_20260902.js' not in s:
+              if anchor not in s: raise SystemExit('Premium valuation script anchor not found')
+              s=s.replace(anchor,anchor+'\n'+tag,1)
+          old="t=window.applyPremiumFormatsValuation20260829?window.applyPremiumFormatsValuation20260829(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n||o||p||q||r||s||t){await cloudSave();return true}return false"
+          new="t=window.applyPremiumFormatsValuation20260829?window.applyPremiumFormatsValuation20260829(state):false,u=window.applySupplierReturn20260902?window.applySupplierReturn20260902(state):false;if(a||b||c||d||e||f||g||h||i||j||k||l||m||n||o||p||q||r||s||t||u){await cloudSave();return true}return false"
+          if 'applySupplierReturn20260902' not in s:
+              if old not in s: raise SystemExit('Migration chain anchor not found')
+              s=s.replace(old,new,1)
+          s=s.replace('2.1.28','2.1.29')
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -q 'supplier_return_20260902.js?v=2.1.29' index.html
+          grep -q 'applySupplierReturn20260902' index.html
+          grep -q 'cloud=2.1.29' index.html
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html supplier_return_20260902.js
+          git commit -m 'Load supplier return 02 September'
+          git push
