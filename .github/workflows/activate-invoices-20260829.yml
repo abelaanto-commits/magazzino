@@ -1,0 +1,62 @@
+name: Activate new invoices 29 August
+
+on:
+  push:
+    paths:
+      - '.github/workflows/activate-invoices-20260829.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Activate 29 August invoices before supplier return
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          ret='<script src="supplier_return_20260902.js?v=2.1.29"></script>'
+          tag='<script src="invoices_20260829_unigroup_ag.js?v=2.1.30"></script>'
+          if 'invoices_20260829_unigroup_ag.js' not in s:
+              if ret not in s: raise SystemExit('supplier return script anchor not found')
+              s=s.replace(ret,tag+'\n'+ret,1)
+          old="t=window.applyPremiumFormatsValuation20260829?window.applyPremiumFormatsValuation20260829(state):false,u=window.applySupplierReturn20260902?window.applySupplierReturn20260902(state):false;"
+          new="t=window.applyPremiumFormatsValuation20260829?window.applyPremiumFormatsValuation20260829(state):false,v=window.applyInvoices20260829?window.applyInvoices20260829(state):false,u=window.applySupplierReturn20260902?window.applySupplierReturn20260902(state):false;"
+          if 'v=window.applyInvoices20260829?' not in s:
+              if old not in s: raise SystemExit('migration chain anchor not found')
+              s=s.replace(old,new,1)
+              s=s.replace('||s||t||u){await cloudSave()','||s||t||v||u){await cloudSave()',1)
+          s=s.replace('2.1.29','2.1.30')
+          p.write_text(s,encoding='utf-8')
+
+          # Il reso del 02/09 è un fatto fisico confermato dall'utente: va registrato anche se il teorico precedente fosse insufficiente.
+          r=Path('supplier_return_20260902.js')
+          x=r.read_text(encoding='utf-8')
+          block=" if(before.moet<4||before.ten<6)throw new Error(`Reso fornitore 02/09 bloccato: giacenza insufficiente. Moët=${before.moet} (servono 4), Tanqueray Ten=${before.ten} (servono 6). Nessuna modifica applicata.`);"
+          repl=" const insufficientBefore={moet:before.moet<4,ten:before.ten<6}; // Reso fisico confermato: non inventare giacenze e non bloccare il movimento reale."
+          if block in x:
+              x=x.replace(block,repl,1)
+          x=x.replace("purchase_prices_unchanged:true};","purchase_prices_unchanged:true,insufficient_before:insufficientBefore,negative_stock_warning:(after.moet<0||after.ten<0)};",1)
+          r.write_text(x,encoding='utf-8')
+          PY
+          grep -q 'invoices_20260829_unigroup_ag.js?v=2.1.30' index.html
+          grep -q 'v=window.applyInvoices20260829?' index.html
+          grep -q 'cloud=2.1.30' index.html
+          grep -q 'insufficientBefore' supplier_return_20260902.js
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html supplier_return_20260902.js; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html supplier_return_20260902.js invoices_20260829_unigroup_ag.js
+          git commit -m 'Load new 29 August invoices before supplier return'
+          git push
