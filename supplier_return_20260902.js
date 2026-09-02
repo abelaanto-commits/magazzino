@@ -20,7 +20,7 @@ window.applySupplierReturn20260902=function(state){
  const ten=mustProduct('Gin Tanqueray Ten 70 cl');
  const rows=[[moet,4],[ten,6]];
  const before={moet:stock(moet.id),ten:stock(ten.id)};
- if(before.moet<4||before.ten<6)throw new Error(`Reso fornitore 02/09 bloccato: giacenza insufficiente. Moët=${before.moet} (servono 4), Tanqueray Ten=${before.ten} (servono 6). Nessuna modifica applicata.`);
+ const insufficientBefore={moet:before.moet<4,ten:before.ten<6}; // Reso fisico confermato: non inventare giacenze e non bloccare il movimento reale.
 
  // Sicurezza retry: se esistono movimenti con lo stesso tag ma il marker non è presente, li elimina e ricostruisce una sola volta.
  work.movements=work.movements.filter(m=>!String(m.notes||'').includes(prefix));
@@ -30,7 +30,7 @@ window.applySupplierReturn20260902=function(state){
  const after={moet:stock(moet.id),ten:stock(ten.id)};
  if(Math.abs(after.moet-(before.moet-4))>1e-9||Math.abs(after.ten-(before.ten-6))>1e-9)throw new Error('Reso fornitore 02/09: controllo giacenze fallito. Nessuna modifica applicata.');
  work.audit_logs.push({id:next(work.audit_logs),action:'reso al fornitore 02/09/2026',entity_type:'warehouse',entity_id:null,details:`Uscita magazzino per reso al fornitore: Moët Réserve Impériale -4 bottiglie; Gin Tanqueray Ten 70 cl -6 bottiglie. Nessuna modifica ai consumi SHIVA e nessuna modifica allo storico prezzi di acquisto. Giacenze prima/dopo: Moët ${before.moet} → ${after.moet}; Tanqueray Ten ${before.ten} → ${after.ten}.`,created_at:now});
- work.meta[marker]={applied_at:now,date,reason:'reso_al_fornitore',movements:[{product_id:moet.id,product_name:moet.name,quantity_delta:-4},{product_id:ten.id,product_name:ten.name,quantity_delta:-6}],stock_before:before,stock_after:after,consumptions_unchanged:true,purchase_prices_unchanged:true};
+ work.meta[marker]={applied_at:now,date,reason:'reso_al_fornitore',movements:[{product_id:moet.id,product_name:moet.name,quantity_delta:-4},{product_id:ten.id,product_name:ten.name,quantity_delta:-6}],stock_before:before,stock_after:after,consumptions_unchanged:true,purchase_prices_unchanged:true,insufficient_before:insufficientBefore,negative_stock_warning:(after.moet<0||after.ten<0)};
  for(const k of ['movements','audit_logs','meta'])state[k]=work[k];
  return true;
 };
