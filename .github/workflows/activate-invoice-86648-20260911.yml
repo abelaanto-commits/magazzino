@@ -1,0 +1,50 @@
+name: Activate UNIGROUP invoice 86648
+
+on:
+  push:
+    paths:
+      - '.github/workflows/activate-invoice-86648-20260911.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Activate invoice 86648
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          anchor='<script src="consumption_20260904_caraibico.js?v=2.1.31"></script>'
+          tag='<script src="invoice_86648_20260911.js?v=2.1.32"></script>'
+          if 'invoice_86648_20260911.js' not in s:
+              if anchor not in s: raise SystemExit('script anchor not found')
+              s=s.replace(anchor,anchor+'\n'+tag,1)
+          old="w=window.applyCaraibicoConsumption20260904?window.applyCaraibicoConsumption20260904(state):false;"
+          new="w=window.applyCaraibicoConsumption20260904?window.applyCaraibicoConsumption20260904(state):false,x=window.applyInvoice86648_20260911?window.applyInvoice86648_20260911(state):false;"
+          if 'x=window.applyInvoice86648_20260911?' not in s:
+              if old not in s: raise SystemExit('migration chain anchor not found')
+              s=s.replace(old,new,1)
+              s=s.replace('||s||t||v||u||w){await cloudSave()','||s||t||v||u||w||x){await cloudSave()',1)
+          s=s.replace('2.1.31','2.1.32')
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -q 'invoice_86648_20260911.js?v=2.1.32' index.html
+          grep -q 'x=window.applyInvoice86648_20260911?' index.html
+          grep -q 'cloud=2.1.32' index.html
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html invoice_86648_20260911.js
+          git commit -m 'Load UNIGROUP invoice 86648 11 September'
+          git push
