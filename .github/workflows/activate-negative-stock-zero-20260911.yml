@@ -1,0 +1,50 @@
+name: Activate negative stock zeroing
+
+on:
+  push:
+    paths:
+      - '.github/workflows/activate-negative-stock-zero-20260911.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Activate negative stock zeroing
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          anchor='<script src="invoice_86648_20260911.js?v=2.1.32"></script>'
+          tag='<script src="negative_stock_zero_20260911.js?v=2.1.33"></script>'
+          if 'negative_stock_zero_20260911.js' not in s:
+              if anchor not in s: raise SystemExit('script anchor not found')
+              s=s.replace(anchor,anchor+'\n'+tag,1)
+          old="x=window.applyInvoice86648_20260911?window.applyInvoice86648_20260911(state):false;"
+          new="x=window.applyInvoice86648_20260911?window.applyInvoice86648_20260911(state):false,y=window.applyNegativeStockZero20260911?window.applyNegativeStockZero20260911(state):false;"
+          if 'y=window.applyNegativeStockZero20260911?' not in s:
+              if old not in s: raise SystemExit('migration chain anchor not found')
+              s=s.replace(old,new,1)
+              s=s.replace('||s||t||v||u||w||x){await cloudSave()','||s||t||v||u||w||x||y){await cloudSave()',1)
+          s=s.replace('2.1.32','2.1.33')
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -q 'negative_stock_zero_20260911.js?v=2.1.33' index.html
+          grep -q 'y=window.applyNegativeStockZero20260911?' index.html
+          grep -q 'cloud=2.1.33' index.html
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html negative_stock_zero_20260911.js
+          git commit -m 'Zero all negative warehouse stock'
+          git push
