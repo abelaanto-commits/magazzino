@@ -1,0 +1,42 @@
+name: Update return 0209
+on:
+  push:
+    paths: ['.github/workflows/update-return-0209.yml']
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch app
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text()
+          if 'return_update_20260902_v1' in s: raise SystemExit(0)
+          fn="""
+function applyReturnUpdate20260902(state){
+ const marker='return_update_20260902_v1';if(state.meta[marker])return false;
+ const old={9:-6,11:-4};
+ state.movements=(state.movements||[]).filter(m=>!(String(m.movement_date||'').slice(0,10)==='2026-09-02'&&String(m.movement_type||'').toLowerCase()==='reso'&&old[Number(m.product_id)]===Number(m.quantity_delta)));
+ const rows=[['Gin Tanqueray Ten 70 cl',9],['Moët Réserve Impériale',3],['Triple Sec 1 L',6],['Rum bianco 1 L',6],['Vermouth rosso 1 L',6],['Bitter Martini 1 L',5]];
+ const missing=[];let total=0;
+ for(const [name,qty] of rows){const prod=findProductByName(state,name);if(!prod){missing.push(name);continue}const code=`[RETURN-0209-V2-${prod.id}]`;if(state.movements.some(m=>String(m.notes||'').includes(code)))continue;state.movements.push({id:nextNumericId(state.movements),movement_date:'2026-09-02',movement_type:'reso',product_id:prod.id,quantity_delta:-qty,unit_cost:avgCost(prod.id),source_type:'manual_return',source_id:null,area_id:null,user_id:null,notes:`Reso 02/09/2026 ${code}`,created_at:new Date().toISOString()});total+=qty}
+ state.audit_logs=Array.isArray(state.audit_logs)?state.audit_logs:[];state.audit_logs.push({id:nextNumericId(state.audit_logs),action:'aggiornamento reso 02/09',entity_type:'movement',entity_id:null,details:`Nuovo reso: ${total} bottiglie. Vecchio reso sostituito.`,created_at:new Date().toISOString()});state.meta[marker]={applied_at:new Date().toISOString(),total_units:total,expected_units:35,missing_products:missing};return true;
+}
+"""
+          s=s.replace('async function applyPendingMigrations(){',fn+'\nasync function applyPendingMigrations(){',1)
+          old='const a=applyInventoryReconciliation(state),b=applyPrideConsumption(state),c=applyFestuniBaileFunkConsumption(state),d=applyFestuniFullDeductionCorrection(state),e=applyAllConsumptionsFinalReconciliation(state),f=applyNucciaSoleConsumption(state),g=applyFestuniXXLConsumption(state);if(a||b||c||d||e||f||g)'
+          new='const a=applyInventoryReconciliation(state),b=applyPrideConsumption(state),c=applyFestuniBaileFunkConsumption(state),d=applyFestuniFullDeductionCorrection(state),e=applyAllConsumptionsFinalReconciliation(state),f=applyNucciaSoleConsumption(state),g=applyFestuniXXLConsumption(state),h=applyReturnUpdate20260902(state);if(a||b||c||d||e||f||g||h)'
+          if old not in s: raise SystemExit('call site missing')
+          s=s.replace(old,new,1).replace('2.1.8','2.1.9').replace("app.toast?.('Consumo Festuni XXL caricato e scalato')","app.toast?.('Reso 02/09 aggiornato')")
+          p.write_text(s)
+          PY
+      - run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m 'Update return for 2 September 2026'
+          git push
