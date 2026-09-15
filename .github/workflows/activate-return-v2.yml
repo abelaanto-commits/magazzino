@@ -1,0 +1,30 @@
+name: Activate corrected return
+on:
+  push:
+    paths: ['.github/workflows/activate-return-v2.yml']
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text()
+          old='supplier_return_20260902.js?v=2.1.34'
+          new='supplier_return_20260902.js?v=2.1.35'
+          if old not in s:
+              print('already updated or version changed')
+          else:
+              p.write_text(s.replace(old,new,1))
+          PY
+      - run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m 'Activate corrected 2 September return'
+          git push
