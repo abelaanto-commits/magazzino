@@ -1,0 +1,36 @@
+name: Activate supplier return stock correction
+
+on:
+  push:
+    paths:
+      - '.github/workflows/bump-supplier-return-v3.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bump supplier return cache key
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old='supplier_return_20260902.js?v=2.1.35'
+          new='supplier_return_20260902.js?v=2.1.36'
+          if old not in s and new not in s:
+              raise SystemExit('supplier return script reference not found')
+          s=s.replace(old,new)
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Load supplier return correction v3'
+          git push
