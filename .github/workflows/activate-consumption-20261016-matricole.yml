@@ -1,0 +1,50 @@
+name: Activate Matricole 16 October consumption
+
+on:
+  push:
+    paths:
+      - '.github/workflows/activate-consumption-20261016-matricole.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Activate Matricole consumption
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          anchor='<script src="consumption_20260911.js?v=2.1.34"></script>'
+          tag='<script src="consumption_20261016_matricole.js?v=2.1.38"></script>'
+          if 'consumption_20261016_matricole.js' not in s:
+              if anchor not in s: raise SystemExit('script anchor not found')
+              s=s.replace(anchor,anchor+'\n'+tag,1)
+          old="z=window.applyConsumption20260911?window.applyConsumption20260911(state):false;"
+          new="z=window.applyConsumption20260911?window.applyConsumption20260911(state):false,aa=window.applyMatricoleConsumption20261016?window.applyMatricoleConsumption20261016(state):false;"
+          if 'aa=window.applyMatricoleConsumption20261016?' not in s:
+              if old not in s: raise SystemExit('migration chain anchor not found')
+              s=s.replace(old,new,1)
+              s=s.replace('||x||y||z){await cloudSave()','||x||y||z||aa){await cloudSave()',1)
+          s=s.replace('cloud=2.1.37','cloud=2.1.38',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -q 'consumption_20261016_matricole.js?v=2.1.38' index.html
+          grep -q 'aa=window.applyMatricoleConsumption20261016?' index.html
+          grep -q 'cloud=2.1.38' index.html
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html consumption_20261016_matricole.js
+          git commit -m 'Load Matricole 16 October consumption'
+          git push
