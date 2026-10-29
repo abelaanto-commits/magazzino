@@ -1,0 +1,50 @@
+name: Activate Caraibico 18 October consumption
+
+on:
+  push:
+    paths:
+      - '.github/workflows/activate-consumption-20261018-caraibico.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Activate Caraibico 18 October consumption
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          anchor='<script src="consumption_20261016_matricole.js?v=2.1.38"></script>'
+          tag='<script src="consumption_20261018_caraibico.js?v=2.1.39"></script>'
+          if 'consumption_20261018_caraibico.js' not in s:
+              if anchor not in s: raise SystemExit('script anchor not found')
+              s=s.replace(anchor,anchor+'\n'+tag,1)
+          old="aa=window.applyMatricoleConsumption20261016?window.applyMatricoleConsumption20261016(state):false;"
+          new="aa=window.applyMatricoleConsumption20261016?window.applyMatricoleConsumption20261016(state):false,ab=window.applyCaraibicoConsumption20261018?window.applyCaraibicoConsumption20261018(state):false;"
+          if 'ab=window.applyCaraibicoConsumption20261018?' not in s:
+              if old not in s: raise SystemExit('migration chain anchor not found')
+              s=s.replace(old,new,1)
+              s=s.replace('||z||aa){await cloudSave()','||z||aa||ab){await cloudSave()',1)
+          s=s.replace('cloud=2.1.38','cloud=2.1.39',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -q 'consumption_20261018_caraibico.js?v=2.1.39' index.html
+          grep -q 'ab=window.applyCaraibicoConsumption20261018?' index.html
+          grep -q 'cloud=2.1.39' index.html
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html consumption_20261018_caraibico.js
+          git commit -m 'Load Caraibico 18 October consumption'
+          git push
