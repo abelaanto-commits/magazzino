@@ -1,0 +1,50 @@
+name: Activate Halloween 31 October consumption
+
+on:
+  push:
+    paths:
+      - '.github/workflows/activate-consumption-20261031-halloween.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Activate Halloween 31 October consumption
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          anchor='<script src="consumption_20261018_caraibico.js?v=2.1.39"></script>'
+          tag='<script src="consumption_20261031_halloween.js?v=2.1.40"></script>'
+          if 'consumption_20261031_halloween.js' not in s:
+              if anchor not in s: raise SystemExit('script anchor not found')
+              s=s.replace(anchor,anchor+'\n'+tag,1)
+          old="ab=window.applyCaraibicoConsumption20261018?window.applyCaraibicoConsumption20261018(state):false;"
+          new="ab=window.applyCaraibicoConsumption20261018?window.applyCaraibicoConsumption20261018(state):false,ac=window.applyHalloweenConsumption20261031?window.applyHalloweenConsumption20261031(state):false;"
+          if 'ac=window.applyHalloweenConsumption20261031?' not in s:
+              if old not in s: raise SystemExit('migration chain anchor not found')
+              s=s.replace(old,new,1)
+              s=s.replace('||aa||ab){await cloudSave()','||aa||ab||ac){await cloudSave()',1)
+          s=s.replace('cloud=2.1.39','cloud=2.1.40',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -q 'consumption_20261031_halloween.js?v=2.1.40' index.html
+          grep -q 'ac=window.applyHalloweenConsumption20261031?' index.html
+          grep -q 'cloud=2.1.40' index.html
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html consumption_20261031_halloween.js
+          git commit -m 'Load Halloween 31 October consumption'
+          git push
