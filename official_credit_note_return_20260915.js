@@ -2,7 +2,7 @@
 'use strict';
 
 window.applyOfficialCreditNoteReturn20260915=function(state){
- const marker='official_credit_note_return_3690_20260915_v1';
+ const marker='official_credit_note_return_3690_20260915_v2';
  state.meta=state.meta||{};
  if(state.meta[marker])return false;
 
@@ -50,24 +50,19 @@ window.applyOfficialCreditNoteReturn20260915=function(state){
  const removedOldMovements=beforeMovementCount-w.movements.length;
  w.audit_logs=w.audit_logs.filter(a=>norm(a.action)!==norm('reso al fornitore 02/09/2026'));
 
- // Il vecchio reso del 02/09 aveva anche rimosso alcune rettifiche positive dell'11/09
- // perché le considerava generate da quel reso. Ora che il reso del 02/09 viene eliminato,
- // ripristiniamo esclusivamente quelle quantità documentate nel meta della vecchia migrazione.
- const oldReturnMeta=w.meta.supplier_return_20260902_v3||{};
- const restoredAdjustments={};
- const oldRemoved=oldReturnMeta.phantom_positive_adjustment_removed||{};
- const restoreSpecs=[
-   [products.ten,Number(oldRemoved.tanqueray_ten||0),'Tanqueray Ten'],
-   [products.moet,Number(oldRemoved.moet||0),'Moët']
- ];
- for(const [p,qty,label] of restoreSpecs){
-   if(!(qty>0))continue;
-   const code='RESTORE-NEGATIVE-STOCK-ZERO-AFTER-REMOVE-0209-'+p.id;
-   if(!w.movements.some(m=>String(m.notes||'').includes(code))){
-     w.movements.push({id:next(w.movements),movement_date:'2026-09-11',movement_type:'rettifica positiva',product_id:p.id,quantity_delta:qty,unit_cost:avg(p.id),source_type:'adjustment',source_id:null,area_id:null,user_id:null,notes:'Ripristino rettifica 11/09 eliminata esclusivamente a causa del vecchio reso 02/09 ['+code+']',created_at:now});
-   }
-   restoredAdjustments[label]=qty;
- }
+ // Elimina eventuali rettifiche positive nate esclusivamente dal vecchio reso 02/09.
+ // Senza quel reso, Tanqueray Ten e Moët non devono ricevere quelle compensazioni.
+ w.movements=w.movements.filter(m=>{
+   const n=String(m.notes||'');
+   if(n.includes('RESTORE-NEGATIVE-STOCK-ZERO-AFTER-REMOVE-0209-'))return false;
+   const isNegZero=n.includes('NEGATIVE-STOCK-ZERO-20260915');
+   const pid=Number(m.product_id);
+   const isAffected=pid===Number(products.ten.id)||pid===Number(products.moet.id);
+   return !(isNegZero&&isAffected&&Number(m.quantity_delta||0)>0);
+ });
+
+ // Rimuove eventuali movimenti del precedente tentativo v1 del reso ufficiale, così la v2 è idempotente.
+ w.movements=w.movements.filter(m=>!String(m.notes||'').includes(prefix));
 
  // Individua la nota di credito ufficiale già registrata.
  const credit=w.invoices.find(i=>norm(i.invoice_number)==='3690 ACC'&&String(i.invoice_date)===date);
@@ -132,7 +127,6 @@ window.applyOfficialCreditNoteReturn20260915=function(state){
    stock_before:before,
    stock_after:after,
    old_return_0209_removed:true,
-   restored_adjustments_removed_by_old_return:restoredAdjustments,
    no_double_count:true
  };
 
