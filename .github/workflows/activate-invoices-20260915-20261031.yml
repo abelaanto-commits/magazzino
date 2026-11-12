@@ -1,0 +1,71 @@
+name: Activate September-October supplier documents
+
+on:
+  push:
+    paths:
+      - '.github/workflows/activate-invoices-20260915-20261031.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Activate supplier documents in chronological migration order
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          anchor='<script src="consumption_20260911.js?v=2.1.34"></script>'
+          tag='<script src="invoices_20260915_20261031.js?v=2.1.41"></script>'
+          if 'invoices_20260915_20261031.js' not in s:
+              if anchor not in s:
+                  raise SystemExit('script anchor not found')
+              s=s.replace(anchor,anchor+'\n'+tag,1)
+
+          old1="z=window.applyConsumption20260911?window.applyConsumption20260911(state):false,aa=window.applyMatricoleConsumption20261016?window.applyMatricoleConsumption20261016(state):false"
+          new1="z=window.applyConsumption20260911?window.applyConsumption20260911(state):false,ad=window.applyCreditNote3690_20260915?window.applyCreditNote3690_20260915(state):false,ae=window.applyInvoice99301_20261010?window.applyInvoice99301_20261010(state):false,af=window.applyInvoice46471_20261016?window.applyInvoice46471_20261016(state):false,aa=window.applyMatricoleConsumption20261016?window.applyMatricoleConsumption20261016(state):false"
+          if 'ad=window.applyCreditNote3690_20260915?' not in s:
+              if old1 not in s:
+                  raise SystemExit('first migration chain anchor not found')
+              s=s.replace(old1,new1,1)
+
+          old2="ab=window.applyCaraibicoConsumption20261018?window.applyCaraibicoConsumption20261018(state):false,ac=window.applyHalloweenConsumption20261031?window.applyHalloweenConsumption20261031(state):false"
+          new2="ab=window.applyCaraibicoConsumption20261018?window.applyCaraibicoConsumption20261018(state):false,ag=window.applyInvoice48867_20261030?window.applyInvoice48867_20261030(state):false,ah=window.applyInvoice106210_20261031?window.applyInvoice106210_20261031(state):false,ac=window.applyHalloweenConsumption20261031?window.applyHalloweenConsumption20261031(state):false"
+          if 'ag=window.applyInvoice48867_20261030?' not in s:
+              if old2 not in s:
+                  raise SystemExit('second migration chain anchor not found')
+              s=s.replace(old2,new2,1)
+
+          oldcond="||z||aa||ab||ac){await cloudSave()"
+          newcond="||z||ad||ae||af||aa||ab||ag||ah||ac){await cloudSave()"
+          if oldcond in s:
+              s=s.replace(oldcond,newcond,1)
+          elif newcond not in s:
+              raise SystemExit('save condition anchor not found')
+
+          s=s.replace('cloud=2.1.40','cloud=2.1.41',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -q 'invoices_20260915_20261031.js?v=2.1.41' index.html
+          grep -q 'ad=window.applyCreditNote3690_20260915?' index.html
+          grep -q 'ae=window.applyInvoice99301_20261010?' index.html
+          grep -q 'af=window.applyInvoice46471_20261016?' index.html
+          grep -q 'ag=window.applyInvoice48867_20261030?' index.html
+          grep -q 'ah=window.applyInvoice106210_20261031?' index.html
+          grep -q 'cloud=2.1.41' index.html
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html invoices_20260915_20261031.js
+          git commit -m 'Load September and October supplier documents'
+          git push
